@@ -345,6 +345,164 @@ def history(
         console.print("  [cyan]--format FORMAT[/cyan]    Format: json, txt, or md (default: md)")
 
 
+@app.command()
+def serve(
+    workspace: str = typer.Option(
+        ".",
+        "--workspace",
+        "-w",
+        help="Workspace directory for file operations"
+    ),
+    transport: str = typer.Option(
+        "stdio",
+        "--transport",
+        "-t",
+        help="Transport mode: stdio (for Claude Desktop) or http"
+    ),
+    enable_file_tools: bool = typer.Option(
+        True,
+        "--enable-file-tools/--no-file-tools",
+        help="Enable file operation tools (read, list)"
+    ),
+    enable_ai_tools: bool = typer.Option(
+        True,
+        "--enable-ai-tools/--no-ai-tools",
+        help="Enable AI tools (explain code)"
+    ),
+    enable_history_tools: bool = typer.Option(
+        False,
+        "--enable-history-tools/--no-history-tools",
+        help="Enable history tools (disabled in Safe Mode by default)"
+    ),
+    safe_mode: bool = typer.Option(
+        True,
+        "--safe-mode/--no-safe-mode",
+        help="Use Safe Mode defaults (read-only, explain-only, no history)"
+    ),
+) -> None:
+    """
+    Start MCP server to expose coding-agent tools to external clients.
+    
+    This allows other applications (like Claude Desktop) to use your
+    coding-agent's file operations, AI capabilities, and history.
+    
+    Examples:
+    
+        # Start with Safe Mode defaults (recommended)
+        coding-agent serve
+        
+        # Serve specific workspace
+        coding-agent serve --workspace /path/to/project
+        
+        # Enable all tools including history
+        coding-agent serve --enable-history-tools --no-safe-mode
+        
+        # Disable Safe Mode for full access
+        coding-agent serve --no-safe-mode
+    
+    For Claude Desktop integration, add this to your Claude config:
+    
+        {
+          "mcpServers": {
+            "coding-agent": {
+              "command": "coding-agent",
+              "args": ["serve", "--workspace", "/your/project/path"]
+            }
+          }
+        }
+    """
+    import asyncio
+    from pathlib import Path
+    from coding_agent.mcp.server import MCPServer
+    from coding_agent.utils.display import print_error_message
+    
+    try:
+        # Resolve workspace path
+        workspace_path = Path(workspace).resolve()
+        
+        if not workspace_path.exists():
+            print_error_message(f"Workspace path does not exist: {workspace}")
+            raise typer.Exit(1)
+        
+        # Display startup info
+        console.print("\n[bold cyan]═══ MCP Server Starting ═══[/bold cyan]\n")
+        console.print(f"[dim]Workspace:[/dim] {workspace_path}")
+        console.print(f"[dim]Transport:[/dim] {transport}")
+        console.print(f"[dim]Safe Mode:[/dim] {'✅ Enabled' if safe_mode else '❌ Disabled'}")
+        console.print()
+        
+        # Show enabled tools
+        console.print("[bold]Enabled Tools:[/bold]")
+        if enable_file_tools:
+            console.print("  ✅ File tools: [cyan]read_file, list_files[/cyan]")
+        if enable_ai_tools:
+            console.print("  ✅ AI tools: [cyan]explain_code[/cyan]")
+        if enable_history_tools:
+            console.print("  ✅ History tools: [cyan]search_history[/cyan]")
+        
+        if not any([enable_file_tools, enable_ai_tools, enable_history_tools]):
+            print_error_message("No tools enabled! Enable at least one tool category.")
+            raise typer.Exit(1)
+        
+        console.print()
+        
+        # Create server
+        if safe_mode:
+            server = MCPServer.with_safe_mode(workspace_path=str(workspace_path))
+        else:
+            server = MCPServer(
+                workspace_path=str(workspace_path),
+                enable_file_tools=enable_file_tools,
+                enable_ai_tools=enable_ai_tools,
+                enable_history_tools=enable_history_tools,
+            )
+        
+        # Show registered tools
+        tools = server.list_tools()
+        console.print(f"[bold green]✓[/bold green] Server initialized with {len(tools)} tool(s)")
+        for tool in tools:
+            console.print(f"  • {tool['name']}: [dim]{tool['description']}[/dim]")
+        
+        console.print()
+        console.print("[bold yellow]Server running...[/bold yellow] Press Ctrl+C to stop")
+        console.print()
+        
+        # Start server based on transport
+        if transport == "stdio":
+            # For stdio, we would need to implement the MCP stdio protocol
+            # For now, show a helpful message
+            console.print("[yellow]Note:[/yellow] stdio transport for MCP protocol coming soon!")
+            console.print("[dim]For now, the server is ready but stdio protocol needs implementation.[/dim]")
+            console.print()
+            console.print("[bold]Tools registered and ready:[/bold]")
+            console.print(f"  Workspace: {workspace_path}")
+            console.print(f"  Total tools: {len(tools)}")
+            
+            # Keep running until interrupted
+            try:
+                import time
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                console.print("\n\n[yellow]Server stopped[/yellow]")
+                
+        elif transport == "http":
+            print_error_message("HTTP transport not yet implemented")
+            console.print("[dim]Currently only stdio transport is supported[/dim]")
+            raise typer.Exit(1)
+        else:
+            print_error_message(f"Unknown transport: {transport}")
+            console.print("[dim]Supported transports: stdio, http[/dim]")
+            raise typer.Exit(1)
+            
+    except KeyboardInterrupt:
+        console.print("\n\n[yellow]Server stopped by user[/yellow]")
+        raise typer.Exit(0)
+    except Exception as e:
+        print_error_message(f"Server error: {e}")
+        raise typer.Exit(1)
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -386,13 +544,12 @@ def main(
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣦⡀⠀⠀⠹⣦⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢳⣄⠀⠀⠈⠻⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡞⠋⠛⢧⡀⠀⠀⠘⢷⡀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡴⠾⣧⡀⠀⠀⠹⣦⠀⠀⠈⢿⡄⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡴⠾⣧⡀⠀⠀⠹⣦⠀⠀⠈⣿⡄⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣿⠀⠀⠈⠻⣄⠀⠀⠀⠀⠀⠀⠈⣷⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⢠⡟⠉⠛⢷⣄⠀⠀⠈⠀⠀⠀⠀⠀⠀⣰⠏⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⢷⡀⠀⠀⠉⠃⠀⠀⠀⠀⠀⠀⠀⣴⠏⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⣦⡀⠀⠀⠀⠀⠀⠀⢀⣠⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠶⣤⣤⣤⡤⠶⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀""", style="dim cyan")
 
         panel = Panel(
