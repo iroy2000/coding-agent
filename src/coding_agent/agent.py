@@ -299,6 +299,10 @@ class CodingAgent:
                 # console.print(f"[dim]Response text:[/dim]\n{response[:200]}...")
             
             if operations:
+                # Track if we need a follow-up response
+                has_read_operation = False
+                operation_results = []
+                
                 for operation, params in operations:
                     success, result = self._execute_file_operation(operation, params)
                     
@@ -307,8 +311,11 @@ class CodingAgent:
                         # Show file content with syntax highlighting
                         from coding_agent.utils.display import print_file_content
                         print_file_content(result, params["path"], max_lines=50)
+                        has_read_operation = True
+                        operation_results.append(f"File: {params['path']}\nContent:\n{result}")
                     elif operation == "LIST_FILES" and success:
                         print_system_message(result)
+                        operation_results.append(result)
                     else:
                         print_file_operation_result(success, result, operation)
                     
@@ -316,6 +323,30 @@ class CodingAgent:
                     if not success:
                         error_context = f"The {operation} operation failed: {result}"
                         self._add_to_history("system", error_context)
+                
+                # If we read a file, ask LLM to provide explanation/answer
+                if has_read_operation and operation_results:
+                    console.print("\n[yellow]Generating explanation...[/yellow]\n")
+                    
+                    # Add operation results to history
+                    for result in operation_results:
+                        self._add_to_history("system", result)
+                    
+                    # Get follow-up response from LLM
+                    follow_up_prompt = "Now that you have the file content, please answer the user's original question."
+                    self._add_to_history("system", follow_up_prompt)
+                    
+                    context = self._build_context()
+                    
+                    if stream:
+                        follow_up_generator = self.llm_client.stream_generate(follow_up_prompt, context[:-1])
+                        follow_up_response = stream_agent_response(follow_up_generator)
+                    else:
+                        follow_up_response = self.llm_client.generate(follow_up_prompt, context[:-1])
+                        print_agent_message(follow_up_response)
+                    
+                    self._add_to_history("assistant", follow_up_response)
+                    return response + "\n\n" + follow_up_response
 
             return response
 
