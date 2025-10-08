@@ -469,20 +469,25 @@ def serve(
         
         # Start server based on transport
         if transport == "stdio":
-            # For stdio, we would need to implement the MCP stdio protocol
-            # For now, show a helpful message
-            console.print("[yellow]Note:[/yellow] stdio transport for MCP protocol coming soon!")
-            console.print("[dim]For now, the server is ready but stdio protocol needs implementation.[/dim]")
-            console.print()
-            console.print("[bold]Tools registered and ready:[/bold]")
-            console.print(f"  Workspace: {workspace_path}")
-            console.print(f"  Total tools: {len(tools)}")
-            
-            # Keep running until interrupted
+            # Run MCP stdio server
             try:
-                import time
-                while True:
-                    time.sleep(1)
+                from coding_agent.mcp.stdio_server import run_stdio_server
+                
+                # Build kwargs for non-safe-mode
+                kwargs = {}
+                if not safe_mode:
+                    kwargs = {
+                        "enable_file_tools": enable_file_tools,
+                        "enable_ai_tools": enable_ai_tools,
+                        "enable_history_tools": enable_history_tools,
+                    }
+                
+                # Run the async server
+                asyncio.run(run_stdio_server(
+                    workspace_path=str(workspace_path),
+                    safe_mode=safe_mode,
+                    **kwargs
+                ))
             except KeyboardInterrupt:
                 console.print("\n\n[yellow]Server stopped[/yellow]")
                 
