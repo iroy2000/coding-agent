@@ -6,11 +6,12 @@ Complete guide to using the Coding Agent CLI effectively.
 
 1. [Getting Started](#getting-started)
 2. [Interactive Chat Mode](#interactive-chat-mode)
-3. [Configuration](#configuration)
-4. [History Management](#history-management)
-5. [Advanced Usage](#advanced-usage)
-6. [Best Practices](#best-practices)
-7. [Troubleshooting](#troubleshooting)
+3. [File Edits, Shell Commands & Git Integration](#file-edits-shell-commands--git-integration)
+4. [Configuration](#configuration)
+5. [History Management](#history-management)
+6. [Advanced Usage](#advanced-usage)
+7. [Best Practices](#best-practices)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -151,6 +152,84 @@ Agent: I'll add password hashing functionality.
 
 ---
 
+## File Edits, Shell Commands & Git Integration
+
+By default, the agent asks for confirmation before it changes anything on
+disk or runs a command, so you always stay in control.
+
+### Diff Preview Before File Writes
+
+Whenever the agent creates or edits a file, it first shows you a unified
+diff and asks for confirmation:
+
+```
+> Refactor the fibonacci function to use memoization
+
+Agent: Here's the change I'd like to make to fibonacci.py:
+
+--- fibonacci.py
++++ fibonacci.py
+@@ -1,3 +1,6 @@
++from functools import lru_cache
++
++@lru_cache(maxsize=None)
+ def fibonacci(n):
+     ...
+
+Apply this change? [y/N]
+```
+
+Answer `y` to apply it, or `N`/Enter to reject it. Nothing is written to
+disk until you approve.
+
+### Shell Command Execution
+
+The agent can run shell commands (e.g. tests, linters, builds) to verify
+its own work, but it always asks first and refuses known-destructive
+commands outright (`rm -rf /`, fork bombs, `sudo`, etc.):
+
+```
+> Run the test suite to make sure your change didn't break anything
+
+Agent: I'd like to run: pytest -q
+Proceed? [y/N]
+```
+
+### Auto-Approve for Non-Interactive Use
+
+If you're scripting `coding-agent` or running it in CI, use `--yes` to
+auto-approve both file-write confirmations and shell-command confirmations:
+
+```bash
+coding-agent chat --yes
+```
+
+Use with caution outside of trusted/CI environments, since this removes
+the manual review step entirely.
+
+### Git Integration
+
+If your workspace is a git repository, you can opt in to having the agent
+auto-commit each successful file write/edit:
+
+```bash
+coding-agent chat --git-commit
+```
+
+Auto-commits are tagged with a `[coding-agent]` prefix so they're easy to
+spot in `git log`. If a change turns out to be wrong, undo it safely:
+
+```bash
+coding-agent undo
+```
+
+`undo` performs a `git revert` (not a destructive reset) and only ever
+touches commits the agent itself made — it refuses to act on any other
+commit, including its own revert commits, so you can't accidentally undo
+twice or revert someone else's work.
+
+---
+
 ## Configuration
 
 ### View Configuration
@@ -278,6 +357,11 @@ coding-agent history --export 20251005_143022_123456 \
 ---
 
 ## Advanced Usage
+
+> **MCP Server integration** (exposing coding-agent to Claude Desktop and
+> other MCP clients via `coding-agent serve`) is documented in the
+> [README's MCP Server section](README.md#-mcp-server-beta) rather than
+> duplicated here.
 
 ### Working with Multiple Projects
 
