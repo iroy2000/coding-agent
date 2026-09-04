@@ -3,7 +3,7 @@
 This is a working implementation of a recursive loop where the [GitHub
 Copilot CLI](https://docs.github.com/copilot/how-tos/copilot-cli) is used
 non-interactively (`copilot -p "..." --allow-all-tools`) as the "brain" for
-every stage of improving this very project:
+every stage of improving a project:
 
 ```
  ┌────────────┐   ┌───────────┐   ┌──────────────┐   ┌──────────────┐   ┌────────────────┐
@@ -17,6 +17,32 @@ every stage of improving this very project:
                                                    │   review comments │
                                                    └───────────────────┘
 ```
+
+## Is this specific to this project?
+
+**No — the mechanism is generic.** Nothing in the pipeline logic (worktree
+isolation, locking, safety denylist, issue/PR plumbing) depends on this
+repo's code. The only project-specific piece is what gets *said* to the
+model in each prompt, and that's parameterized:
+
+- `PROJECT_NAME` / `PROJECT_DESCRIPTION` (see `lib.sh`) are auto-detected
+  from `gh repo view` when the scripts start, so dropping this whole
+  `scripts/agent_loop/` directory into a different repo works out of the
+  box with zero edits.
+- Override them explicitly if auto-detection is unavailable/wrong, e.g.:
+  ```bash
+  export PROJECT_NAME="acme-widget"
+  export PROJECT_DESCRIPTION="a widget-sorting microservice"
+  scripts/agent_loop/run_cycle.sh
+  ```
+
+**To reuse this in another repo:** copy `scripts/agent_loop/` into it,
+make sure `gh`/`copilot` are authenticated for that repo, and run
+`run_cycle.sh` from inside it — `lib.sh` resolves `REPO_ROOT` relative to
+its own location, so it doesn't need to know anything about
+"coding-agent-cli" specifically. The `enhancement`/`bug`/`ai-generated`
+labels get created on demand (`gh label create`) if they don't already
+exist.
 
 ## Why this is safe to run unattended
 

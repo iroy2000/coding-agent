@@ -33,7 +33,7 @@ PROMPT_FILE="$LOOP_STATE_DIR/6_review_prompt_$PR_NUMBER.txt"
 RESULT_FILE="$LOOP_STATE_DIR/6_review_result_$PR_NUMBER.txt"
 
 cat > "$PROMPT_FILE" <<EOF
-You are addressing review feedback on PR #$PR_NUMBER of "coding-agent-cli".
+You are addressing review feedback on PR #$PR_NUMBER of "$PROJECT_NAME".
 You are already on the PR's branch in this worktree.
 
 Review/PR comments to address:

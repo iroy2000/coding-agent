@@ -18,8 +18,8 @@ PROMPT_FILE="$LOOP_STATE_DIR/2_judge_prompt.txt"
 VERDICT_FILE="$LOOP_STATE_DIR/verdict.json"
 
 cat > "$PROMPT_FILE" <<EOF
-You are a skeptical staff engineer acting as judge + researcher for the
-"coding-agent-cli" project. You did NOT write the following candidate
+You are a skeptical staff engineer acting as judge + researcher for
+"$PROJECT_NAME": $PROJECT_DESCRIPTION. You did NOT write the following candidate
 ideas and have no attachment to them; your job is to find reasons to
 reject bad ones.
 

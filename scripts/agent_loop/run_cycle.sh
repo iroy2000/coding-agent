@@ -84,7 +84,7 @@ main() {
 
     # Best-effort local notification (macOS). Never fails the cycle.
     if command -v osascript >/dev/null 2>&1; then
-        osascript -e "display notification \"PR #$pr_number ready for review\" with title \"coding-agent-cli agent loop\"" >/dev/null 2>&1 || true
+        osascript -e "display notification \"PR #$pr_number ready for review\" with title \"$PROJECT_NAME agent loop\"" >/dev/null 2>&1 || true
     fi
 }
 

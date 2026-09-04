@@ -11,6 +11,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOOP_STATE_DIR="${LOOP_STATE_DIR:-$REPO_ROOT/.agent_loop_state}"
 mkdir -p "$LOOP_STATE_DIR"
 
+# Project identity used in prompts below. Auto-detected from the GitHub
+# repo itself (so this whole scripts/agent_loop/ directory is portable —
+# copy it into any repo and it adapts) but overridable via env vars if
+# auto-detection is unavailable/wrong (e.g. no network, private repo
+# without gh access yet, or you want a more specific description than the
+# repo's one-line GitHub description).
+PROJECT_NAME="${PROJECT_NAME:-$(cd "$REPO_ROOT" && gh repo view --json name --jq .name 2>/dev/null || basename "$REPO_ROOT")}"
+PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-$(cd "$REPO_ROOT" && gh repo view --json description --jq .description 2>/dev/null || echo "a software project")}"
+
 # Cap per-invocation spend/turns so a single stage can never run away.
 # Override via env vars if you need more headroom for a harder task.
 # copilot enforces a hard floor of 30 credits; 40 leaves a little slack.

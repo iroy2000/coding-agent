@@ -36,7 +36,7 @@ PROMPT_FILE="$LOOP_STATE_DIR/4_implement_prompt_$ISSUE_NUMBER.txt"
 RESULT_FILE="$LOOP_STATE_DIR/4_implement_result_$ISSUE_NUMBER.txt"
 
 cat > "$PROMPT_FILE" <<EOF
-You are implementing GitHub issue #$ISSUE_NUMBER on the "coding-agent-cli"
+You are implementing GitHub issue #$ISSUE_NUMBER on the "$PROJECT_NAME"
 repository. You are already on a dedicated branch "$BRANCH" checked out in
 this worktree — do not create or switch branches, and never commit
 directly to main.

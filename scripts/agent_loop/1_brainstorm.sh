@@ -18,9 +18,7 @@ PROMPT_FILE="$LOOP_STATE_DIR/1_brainstorm_prompt.txt"
 IDEAS_FILE="$LOOP_STATE_DIR/ideas.json"
 
 cat > "$PROMPT_FILE" <<EOF
-You are brainstorming for the "coding-agent-cli" project (a local-first CLI
-coding assistant that talks to Ollama/other LLMs and can read/write files,
-run shell commands, and integrate with git).
+You are brainstorming for "$PROJECT_NAME": $PROJECT_DESCRIPTION.
 
 Read README.md and, if it exists, ROADMAP.md in the current directory for
 context on what already exists and what's already planned.
@@ -30,9 +28,9 @@ these):
 $OPEN_ISSUES
 
 Propose exactly 3 NEW, concrete, scoped enhancement ideas that would move
-this project closer to mainstream adoption (compare to tools like GitHub
-Copilot CLI, Cursor, Aider, Claude Code). Each idea must be small enough to
-be implemented and fully tested in a single focused pull request (do not
+this project closer to mainstream adoption (compare it to the best-in-class
+tools/products in its category). Each idea must be small enough to be
+implemented and fully tested in a single focused pull request (do not
 propose vague, multi-week initiatives).
 
 Respond with ONLY a raw JSON array (no markdown fences, no commentary),
