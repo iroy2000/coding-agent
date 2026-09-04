@@ -7,6 +7,7 @@ and safe to exercise end-to-end.
 
 import subprocess
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
@@ -66,6 +67,219 @@ class TestChatCommandHelp:
         assert result.exit_code == 0
         assert "--yes" in result.stdout
         assert "--git-commit" in result.stdout
+
+
+class TestChatCommand:
+    """Drives `chat` end-to-end with a mocked Ollama client + agent so no
+    live Ollama server or LLM call is required.
+    """
+
+    def _mock_client(self, models=None):
+        client = MagicMock()
+        client.check_connection.return_value = True
+        client.check_model_exists.return_value = True
+        client.list_models.return_value = models or ["codellama:latest"]
+        return client
+
+    def test_exits_when_ollama_unreachable(self, temp_dir: Path):
+        with patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient:
+            MockClient.return_value.check_connection.return_value = False
+            result = runner.invoke(app, ["chat"], input="\n")
+        assert result.exit_code == 1
+        assert "cannot connect to ollama" in result.stdout.lower()
+
+    def test_exits_when_model_missing(self, temp_dir: Path):
+        with patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient:
+            mock_client = self._mock_client()
+            mock_client.check_model_exists.return_value = False
+            MockClient.return_value = mock_client
+            result = runner.invoke(app, ["chat"], input="\n")
+        assert result.exit_code == 1
+        assert "not found" in result.stdout.lower()
+
+    def test_normal_conversation_and_exit(self, temp_dir: Path):
+        mock_agent = MagicMock()
+        mock_agent.session_id = "session-123"
+        mock_agent.get_workspace_info.return_value = {"path": str(temp_dir), "file_count": 3}
+
+        with (
+            patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient,
+            patch("coding_agent.agent.CodingAgent", return_value=mock_agent),
+        ):
+            MockClient.return_value = self._mock_client()
+            result = runner.invoke(app, ["chat"], input="hello there\nexit\n")
+
+        assert result.exit_code == 0
+        mock_agent.process_message.assert_called_once_with("hello there", stream=True)
+        assert "session-123" in result.stdout
+        assert "goodbye" in result.stdout.lower()
+
+    def test_help_command_shown(self, temp_dir: Path):
+        mock_agent = MagicMock()
+        mock_agent.session_id = None
+        mock_agent.get_workspace_info.return_value = {"path": str(temp_dir), "file_count": 0}
+
+        with (
+            patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient,
+            patch("coding_agent.agent.CodingAgent", return_value=mock_agent),
+        ):
+            MockClient.return_value = self._mock_client()
+            result = runner.invoke(app, ["chat"], input="help\nquit\n")
+
+        assert result.exit_code == 0
+        assert "Available Commands" in result.stdout
+        mock_agent.process_message.assert_not_called()
+
+    def test_clear_and_workspace_commands(self, temp_dir: Path):
+        mock_agent = MagicMock()
+        mock_agent.session_id = None
+        mock_agent.get_workspace_info.return_value = {"path": str(temp_dir), "file_count": 1}
+
+        with (
+            patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient,
+            patch("coding_agent.agent.CodingAgent", return_value=mock_agent),
+        ):
+            MockClient.return_value = self._mock_client()
+            result = runner.invoke(app, ["chat"], input="clear\nworkspace\nexit\n")
+
+        assert result.exit_code == 0
+        mock_agent.clear_history.assert_called_once()
+        assert mock_agent.get_workspace_info.call_count == 2
+
+    def test_models_command_lists_models(self, temp_dir: Path):
+        mock_agent = MagicMock()
+        mock_agent.session_id = None
+        mock_agent.get_workspace_info.return_value = {"path": str(temp_dir), "file_count": 0}
+
+        with (
+            patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient,
+            patch("coding_agent.agent.CodingAgent", return_value=mock_agent),
+        ):
+            MockClient.return_value = self._mock_client(models=["codellama:latest", "deepseek-coder"])
+            result = runner.invoke(app, ["chat"], input="models\nexit\n")
+
+        assert result.exit_code == 0
+        assert "deepseek-coder" in result.stdout
+
+    def test_yes_and_git_commit_flags_passed_to_agent(self, temp_dir: Path):
+        mock_agent = MagicMock()
+        mock_agent.session_id = None
+        mock_agent.get_workspace_info.return_value = {"path": str(temp_dir), "file_count": 0}
+
+        with (
+            patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient,
+            patch("coding_agent.agent.CodingAgent", return_value=mock_agent) as MockAgentClass,
+        ):
+            MockClient.return_value = self._mock_client()
+            result = runner.invoke(app, ["chat", "--yes", "--git-commit"], input="exit\n")
+
+        assert result.exit_code == 0
+        _, kwargs = MockAgentClass.call_args
+        assert kwargs["auto_approve_commands"] is True
+        assert kwargs["auto_approve_writes"] is True
+        assert kwargs["enable_git_auto_commit"] is True
+
+    def test_process_message_error_is_reported_and_loop_continues(self, temp_dir: Path):
+        mock_agent = MagicMock()
+        mock_agent.session_id = None
+        mock_agent.get_workspace_info.return_value = {"path": str(temp_dir), "file_count": 0}
+        mock_agent.process_message.side_effect = RuntimeError("model exploded")
+
+        with (
+            patch("coding_agent.llm.ollama_client.OllamaClient") as MockClient,
+            patch("coding_agent.agent.CodingAgent", return_value=mock_agent),
+        ):
+            MockClient.return_value = self._mock_client()
+            result = runner.invoke(app, ["chat"], input="hi\nexit\n")
+
+        assert result.exit_code == 0
+        assert "failed to generate response" in result.stdout.lower()
+        assert "model exploded" in result.stdout
+
+
+class TestServeCommand:
+    """Drives `serve` with a mocked MCPServer + stdio transport so no real
+    subprocess/MCP client connection is required.
+    """
+
+    def _mock_server(self, tools=None):
+        server = MagicMock()
+        server.list_tools.return_value = tools or [
+            {"name": "read_file", "description": "Reads a file"},
+            {"name": "list_files", "description": "Lists files"},
+        ]
+        return server
+
+    def test_fails_for_missing_workspace(self, tmp_path: Path):
+        missing = tmp_path / "does-not-exist"
+        result = runner.invoke(app, ["serve", "--workspace", str(missing)])
+        assert result.exit_code == 1
+        assert "does not exist" in result.stdout.lower()
+
+    def test_starts_stdio_server_and_lists_tools(self, tmp_path: Path):
+        mock_server = self._mock_server()
+        with (
+            patch("coding_agent.mcp.server.MCPServer.with_safe_mode", return_value=mock_server),
+            patch(
+                "coding_agent.mcp.stdio_server.run_stdio_server", new_callable=AsyncMock
+            ) as mock_run,
+        ):
+            result = runner.invoke(app, ["serve", "--workspace", str(tmp_path)])
+
+        assert result.exit_code == 0
+        assert "read_file" in result.stdout
+        assert "Server initialized with 2 tool(s)" in result.stdout
+        mock_run.assert_awaited_once()
+
+    def test_no_safe_mode_uses_direct_constructor(self, tmp_path: Path):
+        mock_server = self._mock_server(tools=[{"name": "search_history", "description": "d"}])
+        with (
+            patch("coding_agent.mcp.server.MCPServer", return_value=mock_server) as MockServerClass,
+            patch(
+                "coding_agent.mcp.stdio_server.run_stdio_server", new_callable=AsyncMock
+            ) as mock_run,
+        ):
+            result = runner.invoke(
+                app,
+                ["serve", "--workspace", str(tmp_path), "--no-safe-mode", "--enable-history-tools"],
+            )
+
+        assert result.exit_code == 0
+        MockServerClass.assert_called_once()
+        mock_run.assert_awaited_once()
+
+    def test_no_tools_enabled_fails(self, tmp_path: Path):
+        result = runner.invoke(
+            app,
+            [
+                "serve",
+                "--workspace",
+                str(tmp_path),
+                "--no-safe-mode",
+                "--no-file-tools",
+                "--no-ai-tools",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "no tools enabled" in result.stdout.lower()
+
+    def test_http_transport_not_implemented(self, tmp_path: Path):
+        mock_server = self._mock_server()
+        with patch("coding_agent.mcp.server.MCPServer.with_safe_mode", return_value=mock_server):
+            result = runner.invoke(
+                app, ["serve", "--workspace", str(tmp_path), "--transport", "http"]
+            )
+        assert result.exit_code == 1
+        assert "http transport not yet implemented" in result.stdout.lower()
+
+    def test_unknown_transport_fails(self, tmp_path: Path):
+        mock_server = self._mock_server()
+        with patch("coding_agent.mcp.server.MCPServer.with_safe_mode", return_value=mock_server):
+            result = runner.invoke(
+                app, ["serve", "--workspace", str(tmp_path), "--transport", "carrier-pigeon"]
+            )
+        assert result.exit_code == 1
+        assert "unknown transport" in result.stdout.lower()
 
 
 class TestConfigCommand:
