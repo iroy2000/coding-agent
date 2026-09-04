@@ -190,6 +190,42 @@ class TestConfigDisplay:
         assert "Ollama Model" in captured.out
 
 
+class TestConfigDotenvDiscovery:
+    """Regression tests for issue #3: editable/dev installs picking up the
+    coding-agent-cli repo's own .env instead of the target project's .env.
+    """
+
+    def test_loads_dotenv_from_cwd_not_from_editable_install_repo_root(
+        self, monkeypatch, tmp_path
+    ):
+        """Config() must find the CWD-local .env even when config.py's real
+        file location (as with an editable/dev install, e.g.
+        `pip install -e ".[dev]"`) lives inside a different repo tree that
+        also happens to contain its own .env file.
+        """
+        for key in ["OLLAMA_HOST", "OLLAMA_MODEL"]:
+            monkeypatch.delenv(key, raising=False)
+
+        # Simulate the coding-agent-cli repo's own checkout with its own .env.
+        repo_root = tmp_path / "coding-agent-cli"
+        fake_module_dir = repo_root / "src" / "coding_agent" / "utils"
+        fake_module_dir.mkdir(parents=True)
+        (repo_root / ".env").write_text("OLLAMA_MODEL=qwen2.5-coder\n")
+        monkeypatch.setattr(
+            config_module, "__file__", str(fake_module_dir / "config.py")
+        )
+
+        # Simulate the target project the developer is actually running from.
+        project_dir = tmp_path / "some_other_project"
+        project_dir.mkdir()
+        (project_dir / ".env").write_text("OLLAMA_MODEL=codellama:latest\n")
+        monkeypatch.chdir(project_dir)
+
+        cfg = Config()
+
+        assert cfg.ollama_model == "codellama:latest"
+
+
 class TestGlobalConfigSingleton:
     def test_get_config_returns_same_instance(self, clean_env):
         cfg1 = get_config()

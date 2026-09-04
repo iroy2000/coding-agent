@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from rich.console import Console
 
 console = Console()
@@ -15,8 +15,12 @@ class Config:
 
     def __init__(self) -> None:
         """Initialize configuration."""
-        # Load .env file from project root
-        load_dotenv()
+        # Load .env file from the current working directory (not the
+        # calling module's location or config.py's own file location, which
+        # for editable/dev installs stays inside the coding-agent-cli repo
+        # tree and would otherwise pick up the repo's own .env instead of
+        # the target project's .env).
+        load_dotenv(find_dotenv(usecwd=True))
 
         # User data directory
         self.user_data_dir = Path.home() / ".coding-agent"
