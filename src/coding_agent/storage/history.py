@@ -145,17 +145,27 @@ class HistoryManager:
             console.print(f"[red]Error loading session: {e}[/red]")
             return None
 
-    def list_sessions(self, limit: Optional[int] = None) -> List[Dict]:
+    def list_sessions(
+        self,
+        limit: Optional[int] = None,
+        workspace_path: Optional[str] = None,
+    ) -> List[Dict]:
         """
         List all available sessions.
 
         Args:
             limit: Maximum number of sessions to return (None for all)
+            workspace_path: If provided, only return sessions whose
+                workspace_path matches this path (resolved for comparison).
+                None (default) returns sessions from all workspaces.
 
         Returns:
             List of session metadata dictionaries
         """
         sessions = []
+        resolved_workspace = (
+            str(Path(workspace_path).resolve()) if workspace_path else None
+        )
 
         try:
             # Get all session files
@@ -165,25 +175,40 @@ class HistoryManager:
                 reverse=True  # Most recent first
             )
 
-            # Apply limit if specified
-            if limit:
-                session_files = session_files[:limit]
-
             for session_file in session_files:
                 try:
                     with open(session_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        
+
+                    session_workspace = data.get("workspace_path")
+
+                    if resolved_workspace is not None:
+                        try:
+                            session_workspace_resolved = (
+                                str(Path(session_workspace).resolve())
+                                if session_workspace
+                                else None
+                            )
+                        except Exception:
+                            session_workspace_resolved = session_workspace
+
+                        if session_workspace_resolved != resolved_workspace:
+                            continue
+
                     # Extract metadata
                     metadata = {
                         "session_id": data.get("session_id"),
                         "created_at": data.get("created_at"),
                         "updated_at": data.get("updated_at", data.get("created_at")),
-                        "workspace_path": data.get("workspace_path"),
+                        "workspace_path": session_workspace,
                         "model": data.get("model"),
                         "message_count": len(data.get("messages", [])),
                     }
                     sessions.append(metadata)
+
+                    # Apply limit after filtering
+                    if limit and len(sessions) >= limit:
+                        break
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not read {session_file.name}: {e}[/yellow]")
                     continue
