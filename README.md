@@ -1,109 +1,76 @@
-# Coding Agent CLI 🤖
+# Coding Agent CLI
 
-An interactive coding assistant CLI powered by local LLMs via Ollama. Get AI-powered help with code generation, refactoring, debugging, and more - all running locally on your machine.
+An interactive coding assistant that runs entirely on local LLMs via [Ollama](https://ollama.com). Ask it to write code, refactor, debug, or explain something, and it works in your terminal against the files in your workspace — nothing gets sent to a third-party API.
 
-## ✨ Features
+## What it does
 
-- 🎯 **Interactive Chat Mode** - Natural conversation with your coding assistant
-- 📁 **File Operations** - Read, write, and edit files in your workspace
-- 🔍 **Diff Preview** - Review a unified diff and approve/deny before any file is written or edited
-- 🖥️ **Shell Command Execution** - Agent can run tests, linters, and builds (with confirmation) to verify its own changes
-- 🧠 **Context-Aware** - Maintains conversation history and workspace understanding
-- 🎨 **Beautiful Output** - Colored, formatted terminal output with syntax highlighting
-- 🔒 **100% Local** - Uses Ollama for complete privacy and offline capability
-- 🚀 **Language Agnostic** - Works with any programming language
+- **Interactive chat** in your terminal, with the model aware of your workspace.
+- **Reads, writes, and edits files** directly, and shows you a diff before anything is applied.
+- **Runs shell commands** (tests, linters, builds) to check its own work — also with confirmation first, and a denylist for obviously destructive commands.
+- **Keeps conversation history** per session, with list/view/delete/export.
+- **Optional git integration** — auto-commit each change it makes, with a safe `undo` that will only revert commits it made itself.
+- Works with any Ollama model and any programming language.
 
-## 📋 Prerequisites
+## Prerequisites
 
-Before installing, make sure you have:
+- Python 3.9+
+- [Ollama](https://ollama.com), installed and running
 
-1. **Python 3.9+** installed
-2. **Ollama** installed and running
-
-### Install Ollama
+Install Ollama:
 
 ```bash
-# macOS/Linux
 curl -fsSL https://ollama.com/install.sh | sh
-
-# Or visit https://ollama.com for other platforms
 ```
 
-### Pull a Coding Model
+Pull a model suited to coding:
 
 ```bash
-# Recommended models
-ollama pull codellama          # Meta's CodeLlama (7B)
-ollama pull deepseek-coder     # DeepSeek Coder (6.7B)
-ollama pull qwen2.5-coder      # Qwen 2.5 Coder (7B)
-
-# Or use a smaller model for faster responses
-ollama pull codellama:7b-code
+ollama pull codellama          # 7B, good general default
+ollama pull deepseek-coder     # 6.7B, strong at code generation
+ollama pull qwen2.5-coder      # 7B, fast — must be pulled explicitly, it isn't bundled with Ollama
 ```
 
-## 🚀 Installation
+Any of these work fine as a starting point; use whichever is already on your machine.
 
-### From Source (Development)
+## Installation
+
+### From source
 
 ```bash
-# Clone the repository
 git clone https://github.com/iroy2000/coding-agent.git
-cd coding-agent-cli
+cd coding-agent
 
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install in editable mode with dev dependencies
 pip install -e ".[dev]"
 
-# Copy environment template
 cp .env.example .env
-
-# Edit .env with your preferred settings
-nano .env
+# edit .env if you want to change the default model/host
 ```
 
 ### From PyPI
 
-Package metadata is release-ready (`pyproject.toml` fixed, `python -m build` + `twine check`
-verified, CI runs the full test suite before every publish). A maintainer can ship the first
-release by pushing a `v*.*.*` tag, which triggers `.github/workflows/release.yml` to build,
-test, and publish to PyPI automatically:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Once published, install with:
+Not published yet — see [issue #12](https://github.com/iroy2000/coding-agent/issues/12) for the first-release plan. Once it's out:
 
 ```bash
 pip install coding-agent-cli
 ```
 
-## 🎮 Quick Start
-
-### Initialize Configuration
+## Quick start
 
 ```bash
-coding-agent init
+coding-agent init    # writes config, checks Ollama is reachable
+coding-agent chat    # start a session
 ```
 
-### Start Interactive Chat
+Example:
 
-```bash
-coding-agent chat
 ```
-
-### Example Session
-
-```bash
 $ coding-agent chat
 
-Welcome to Coding Agent CLI! 🤖
-Type 'exit' or 'quit' to end the session.
-Type 'help' for available commands.
+Welcome to Coding Agent CLI!
+Type 'exit' or 'quit' to end the session, 'help' for commands.
 
 > Create a Python function to calculate fibonacci numbers
 
@@ -112,7 +79,7 @@ Agent: I'll create a fibonacci function for you.
 ✓ File created successfully
 
 I've created a fibonacci function using memoization for efficiency.
-Would you like me to add tests or examples?
+Would you like me to add tests?
 
 > Yes, add some test cases
 
@@ -120,225 +87,114 @@ Agent: I'll add pytest test cases.
 [Creating file: test_fibonacci.py]
 ✓ File created successfully
 
-I've added comprehensive test cases. You can run them with: pytest test_fibonacci.py
+You can run them with: pytest test_fibonacci.py
 ```
 
-## 📖 Usage
-
-### Commands
+## Usage
 
 ```bash
-# Start interactive chat session
-coding-agent chat
+coding-agent chat                  # interactive session
+coding-agent chat --yes            # auto-approve file writes and shell commands (careful with this)
+coding-agent chat --git-commit     # auto-commit each successful change (workspace must be a git repo)
+coding-agent undo                  # revert the last agent-made commit
 
-# Auto-approve shell commands and file writes/edits (use with caution)
-coding-agent chat --yes
-
-# Auto-commit each successful file write/edit to git (only if workspace is a git repo)
-coding-agent chat --git-commit
-
-# Undo the last agent-made git commit (safe: refuses to undo commits it didn't make)
-coding-agent undo
-
-# Initialize configuration (first-time setup)
-coding-agent init
-
-# View current configuration
+coding-agent init                  # first-time setup
 coding-agent config --show
-
-# Update configuration
 coding-agent config --set OLLAMA_MODEL=deepseek-coder
 coding-agent config --set MAX_HISTORY_LENGTH=100
 
-# List conversation history
 coding-agent history --list
 coding-agent history --list --limit 10
-
-# View specific conversation
 coding-agent history --view <session-id>
-
-# Delete a conversation session
 coding-agent history --delete <session-id>
-
-# Export conversation to file
 coding-agent history --export <session-id> --output chat.md --format md
-coding-agent history --export <session-id> --output chat.json --format json
-coding-agent history --export <session-id> --output chat.txt --format txt
 
-# Show version
 coding-agent --version
-
-# Show help
 coding-agent --help
 ```
 
-### Chat Commands
+In-chat commands: `exit`/`quit`, `help`, `clear`, `workspace`, `models`.
 
-While in interactive mode, you can use these commands:
+## Configuration
 
-- `exit` or `quit` - End the session
-- `help` - Show available commands
-- `clear` - Clear conversation history
-- `workspace` - Show current workspace info
-- `models` - List available Ollama models
-
-## ⚙️ Configuration
-
-Configuration is managed through a `.env` file:
+Settings live in a `.env` file in the project (or `~/.coding-agent/.env`):
 
 ```env
-# Ollama Configuration
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=codellama:latest
 
-# Workspace Configuration
 WORKSPACE_PATH=.
 
-# History Configuration
 MAX_HISTORY_LENGTH=50
 HISTORY_ENABLED=true
 
-# Display Configuration
 SHOW_SPINNER=true
 SYNTAX_THEME=monokai
 ```
 
-## 🎯 What Can It Do?
-
-### Generate Code
+## Things you can ask it
 
 ```
 > Create a REST API endpoint in Python using FastAPI for user authentication
-```
-
-### Refactor Code
-
-```
-> Refactor the main.py file to use async/await pattern
-```
-
-### Debug Issues
-
-```
-> I'm getting a "TypeError: 'NoneType' object is not subscriptable" in line 42 of utils.py, can you help?
-```
-
-### Answer Questions
-
-```
+> Refactor the main.py file to use async/await
+> I'm getting "TypeError: 'NoneType' object is not subscriptable" on line 42 of utils.py, can you help?
 > What's the difference between @staticmethod and @classmethod in Python?
+> Review the error handling in database.py and suggest improvements
 ```
 
-### Review Code
+See [EXAMPLES.md](EXAMPLES.md) and [USAGE_GUIDE.md](USAGE_GUIDE.md) for more.
 
-```
-> Review the error handling in my database.py file and suggest improvements
-```
-
-## 🏗️ Project Structure
+## Project structure
 
 ```
 coding-agent-cli/
-├── src/
-│   └── coding_agent/
-│       ├── cli.py              # CLI interface
-│       ├── agent.py            # Core agent logic
-│       ├── llm/                # LLM integration
-│       ├── tools/              # File operations
-│       ├── storage/            # History management
-│       └── utils/              # Utilities
-├── tests/                      # Test suite
-├── .env.example               # Configuration template
-├── pyproject.toml             # Project metadata
-└── README.md                  # This file
+├── src/coding_agent/
+│   ├── cli.py           # CLI entry point (Typer)
+│   ├── agent.py         # Core agent loop
+│   ├── llm/             # Ollama client + prompts
+│   ├── tools/           # File operations, shell execution
+│   ├── storage/         # Conversation history
+│   └── utils/           # Config, display
+├── tests/
+├── scripts/             # dev-only helper scripts, see scripts/README.md
+└── pyproject.toml
 ```
 
-## 🧪 Development
-
-### Run Tests
+## Development
 
 ```bash
-pytest
+pytest                                          # run tests
+pytest --cov=src/coding_agent --cov-report=html # with coverage
+black src/ tests/                               # format
+ruff check src/ tests/                          # lint
+mypy src/                                       # type check
 ```
 
-### Run Tests with Coverage
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup.
+
+## Roadmap
+
+Active work is tracked in [GitHub Issues](https://github.com/iroy2000/coding-agent/issues), not duplicated here. A few things currently open:
+
+- Structured tool-calling instead of regex-parsed actions ([#8](https://github.com/iroy2000/coding-agent/issues/8))
+- Support for LLM providers beyond Ollama ([#9](https://github.com/iroy2000/coding-agent/issues/9))
+- Repository-wide search/indexing ([#10](https://github.com/iroy2000/coding-agent/issues/10))
+- First PyPI release ([#12](https://github.com/iroy2000/coding-agent/issues/12))
+
+What's already working: chat, file read/write/edit with diff confirmation, shell command execution with a safety denylist, git auto-commit/undo, history with export, and CI running the full test suite (200+ tests) on every push.
+
+## MCP server (early / beta)
+
+`coding-agent serve` runs an MCP (Model Context Protocol) server over stdio, so tools like Claude Desktop can call into your workspace. This is genuinely early — three tools are wired up (`read_file`, `list_files`, `explain_code`), Safe Mode is on by default, and the full protocol surface is still being built out. Treat it as a preview, not a finished integration.
 
 ```bash
-pytest --cov=src/coding_agent --cov-report=html
+coding-agent serve                          # Safe Mode: read_file, list_files, explain_code only
+coding-agent serve --workspace /path/to/project
+coding-agent serve --enable-history-tools   # also expose history search
+coding-agent serve --no-safe-mode           # full tool access — only do this if you trust the client
 ```
 
-### Format Code
-
-```bash
-black src/ tests/
-```
-
-### Lint Code
-
-```bash
-ruff check src/ tests/
-```
-
-### Type Check
-
-```bash
-mypy src/
-```
-
-## 🗺️ Roadmap
-
-### Completed ✅
-- [x] Basic chat interface
-- [x] Streaming responses in chat
-- [x] File read/write operations
-- [x] File editing (search & replace)
-- [x] Shell command execution tool (run tests/build/lint, with safety confirmation)
-- [x] Diff preview & confirmation before file writes/edits
-- [x] Git integration: opt-in auto-commit of agent changes + safe `undo` (git revert, agent-commits only)
-- [x] Conversation history with search
-- [x] Session management (list, view, delete, export)
-- [x] Configuration management
-- [x] .gitignore respect
-- [x] Colored terminal output with Rich
-- [x] Multiple export formats (JSON, TXT, Markdown)
-- [x] CI pipeline (GitHub Actions) running tests on every push/PR
-- [x] Comprehensive test suite (150+ tests, 44%+ coverage)
-
-### In Progress 🚧
-- [ ] Enhanced error handling
-- [ ] Performance optimizations
-- [ ] Extended documentation
-
-### Planned 🎯
-- [ ] Plugin system
-- [ ] Multiple LLM provider support (OpenAI, Anthropic, etc.)
-- [ ] Web UI
-- [ ] VS Code extension
-- [ ] Code review mode
-- [ ] Workspace templates
-- [ ] Repository indexing / semantic search
-- [ ] Structured tool-calling (replace regex-based action parsing)
-
-## 🔌 MCP Server (Beta)
-
-**Model Context Protocol** support is now available! Expose your coding-agent's capabilities to other MCP-enabled applications like Claude Desktop.
-
-### Quick Start
-
-Start the MCP server with Safe Mode defaults (recommended):
-
-```bash
-coding-agent serve
-```
-
-This exposes three tools to MCP clients:
-- `read_file` - Read files from your workspace
-- `list_files` - List and search files
-- `explain_code` - Get AI explanations of code snippets
-
-### Claude Desktop Integration
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -351,97 +207,25 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
-Now Claude Desktop can read and analyze files in your project!
+Safe Mode enables `read_file`, `list_files`, and `explain_code`; it leaves `write_file`, `generate_code`, and `search_history` off by default since those are either destructive, expensive, or privacy-sensitive.
 
-### Advanced Usage
+## Contributing
 
-```bash
-# Serve specific workspace
-coding-agent serve --workspace /path/to/project
+See [CONTRIBUTING.md](CONTRIBUTING.md). Short version: fork, branch, make sure `pytest` passes, open a PR.
 
-# Enable all tools (including history)
-coding-agent serve --enable-history-tools
+## License
 
-# Disable Safe Mode for full access
-coding-agent serve --no-safe-mode
+MIT — see [LICENSE](LICENSE).
 
-# Show all options
-coding-agent serve --help
-```
+## Thanks
 
-### Safe Mode (Default)
+Built on [Ollama](https://ollama.com) for local inference, [Typer](https://typer.tiangolo.com) for the CLI, and [Rich](https://rich.readthedocs.io) for terminal output.
 
-For security and cost control, Safe Mode enables only:
-- ✅ **read_file** - Read-only file access
-- ✅ **list_files** - Directory listing
-- ✅ **explain_code** - Code explanations (low cost)
-- ❌ **write_file** - Disabled (requires explicit opt-in)
-- ❌ **generate_code** - Disabled (expensive operations)
-- ❌ **search_history** - Disabled (privacy)
+## Links
 
-### What is MCP?
-
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard by Anthropic that enables AI applications to securely access data and tools. Think of it as a universal adapter that lets different AI tools work together.
-
-**Status**: Phase 1A Complete (stdio transport foundation)
-- ✅ Tool registration system
-- ✅ Safe Mode defaults
-- ✅ CLI command with full options
-- ⏳ Full MCP stdio protocol (Phase 1B)
-- ⏳ MCP Inspector testing (Phase 1B)
-
-See [MCP_STATUS.md](MCP_STATUS.md) for detailed status and roadmap.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- [Ollama](https://ollama.com) for making local LLM inference easy
-- [Typer](https://typer.tiangolo.com) for the amazing CLI framework
-- [Rich](https://rich.readthedocs.io) for beautiful terminal output
-
-## 📧 Support
-
-- 🐛 [Report a bug](https://github.com/iroy2000/coding-agent-cli/issues)
-- 💡 [Request a feature](https://github.com/iroy2000/coding-agent-cli/issues)
-- 📖 [Documentation](https://github.com/iroy2000/coding-agent-cli/wiki)
-- 💬 [Discussions](https://github.com/iroy2000/coding-agent-cli/discussions)
-
-Project Link: [https://github.com/iroy2000/coding-agent-cli](https://github.com/iroy2000/coding-agent-cli)
+- [Report a bug / request a feature](https://github.com/iroy2000/coding-agent/issues)
+- [Repo](https://github.com/iroy2000/coding-agent)
 
 ---
 
-Made with Love by Roy
-
-```
-⠀⠀⠀⣀⣀⣤⣤⣦⣶⢶⣶⣿⣿⣿⣿⣿⣿⣿⣷⣶⣶⡄⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡀⠀⠀⠀⠀⠀⠀
-⠀⠉⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀⠀⠀⠀
-⠀⠀⠀⠈⠙⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣷⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⢿⣿⣿⣿⣿⣿⣧⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⢻⣿⣿⣿⡆
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⡇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⡇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠃
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡿⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡇⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-```
+Made by Roy.

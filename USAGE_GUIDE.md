@@ -1,66 +1,40 @@
-# Coding Agent CLI - Usage Guide
+# Usage Guide
 
-Complete guide to using the Coding Agent CLI effectively.
+A deeper walkthrough of `coding-agent`, beyond what's in the README.
 
-## Table of Contents
+## Contents
 
-1. [Getting Started](#getting-started)
-2. [Interactive Chat Mode](#interactive-chat-mode)
-3. [File Edits, Shell Commands & Git Integration](#file-edits-shell-commands--git-integration)
+1. [First-time setup](#first-time-setup)
+2. [Chat mode](#chat-mode)
+3. [File edits, shell commands & git](#file-edits-shell-commands--git)
 4. [Configuration](#configuration)
-5. [History Management](#history-management)
-6. [Advanced Usage](#advanced-usage)
-7. [Best Practices](#best-practices)
+5. [History](#history)
+6. [Multiple projects / models](#multiple-projects--models)
+7. [Writing good prompts](#writing-good-prompts)
 8. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Getting Started
+## First-time setup
 
-### First-Time Setup
+```bash
+curl -fsSL https://ollama.com/install.sh | sh   # install Ollama
+ollama pull codellama                            # pull a model
 
-1. **Install Ollama** (if not already installed):
-   ```bash
-   curl -fsSL https://ollama.com/install.sh | sh
-   ```
-
-2. **Pull a coding model**:
-   ```bash
-   # Recommended for coding tasks
-   ollama pull codellama
-   
-   # Alternative models
-   ollama pull deepseek-coder    # Excellent for code generation
-   ollama pull qwen2.5-coder     # Fast and efficient
-   ```
-
-3. **Initialize Coding Agent**:
-   ```bash
-   coding-agent init
-   ```
-
-   This will:
-   - Create configuration files
-   - Set up history directory
-   - Test Ollama connection
-   - Configure default model
-
-4. **Start chatting**:
-   ```bash
-   coding-agent chat
-   ```
+coding-agent init                                # creates config, checks Ollama connection
+coding-agent chat                                # start chatting
+```
 
 ---
 
-## Interactive Chat Mode
-
-### Starting a Session
+## Chat mode
 
 ```bash
 coding-agent chat
 ```
 
-You'll see:
+You'll get a prompt in your workspace:
+
 ```
 Welcome to Coding Agent CLI!
 
@@ -71,43 +45,28 @@ Type 'help' for commands or start chatting!
 >
 ```
 
-### Basic Interactions
+A few things you can ask it:
 
-#### Ask Questions
 ```
 > What's the difference between list.append() and list.extend() in Python?
-```
-
-#### Generate Code
-```
 > Create a Python function that validates email addresses using regex
-```
-
-#### Refactor Code
-```
 > Refactor the calculate_total function in utils.py to be more efficient
-```
-
-#### Debug Code
-```
 > I'm getting a KeyError on line 42 in data_processor.py. Can you help?
 ```
 
-### In-Chat Commands
+In-chat commands:
 
-While in chat mode, you can use these special commands:
-
-| Command | Description |
-|---------|-------------|
+| Command | Does |
+|---|---|
 | `help` | Show available commands |
-| `exit` or `quit` | End the chat session |
+| `exit` / `quit` | End the session |
 | `clear` | Clear current conversation context |
-| `workspace` | Show current workspace information |
+| `workspace` | Show current workspace info |
 | `models` | List available Ollama models |
 
-### Example Session
+A short session, showing the agent creating a file and then following up:
 
-```bash
+```
 $ coding-agent chat
 
 > Create a FastAPI endpoint for user registration
@@ -130,19 +89,12 @@ class UserRegistration(BaseModel):
 
 @router.post("/register")
 async def register_user(user: UserRegistration):
-    # Hash password
     hashed_password = hash_password(user.password)
-    
-    # Store user in database
-    # ... implementation ...
-    
+    # ... store user, return response ...
     return {"message": "User registered successfully"}
 ```
 
-I've created a basic registration endpoint. Would you like me to:
-1. Add password hashing implementation?
-2. Add database integration?
-3. Add email verification?
+Want me to add password hashing, database integration, or email verification next?
 
 > Add password hashing using bcrypt
 
@@ -152,15 +104,13 @@ Agent: I'll add password hashing functionality.
 
 ---
 
-## File Edits, Shell Commands & Git Integration
+## File edits, shell commands & git
 
-By default, the agent asks for confirmation before it changes anything on
-disk or runs a command, so you always stay in control.
+The agent asks before it changes anything on disk or runs a command — you stay in control by default.
 
-### Diff Preview Before File Writes
+### Diffs before writes
 
-Whenever the agent creates or edits a file, it first shows you a unified
-diff and asks for confirmation:
+Every file create/edit shows a unified diff first:
 
 ```
 > Refactor the fibonacci function to use memoization
@@ -179,14 +129,11 @@ Agent: Here's the change I'd like to make to fibonacci.py:
 Apply this change? [y/N]
 ```
 
-Answer `y` to apply it, or `N`/Enter to reject it. Nothing is written to
-disk until you approve.
+`y` applies it, anything else (including just Enter) rejects it. Nothing touches disk until you approve.
 
-### Shell Command Execution
+### Shell commands
 
-The agent can run shell commands (e.g. tests, linters, builds) to verify
-its own work, but it always asks first and refuses known-destructive
-commands outright (`rm -rf /`, fork bombs, `sudo`, etc.):
+The agent can run things like `pytest` or a linter to check its own work, but it asks first and refuses a denylist of destructive commands outright (`rm -rf /`, fork bombs, `sudo`, etc.):
 
 ```
 > Run the test suite to make sure your change didn't break anything
@@ -195,223 +142,103 @@ Agent: I'd like to run: pytest -q
 Proceed? [y/N]
 ```
 
-### Auto-Approve for Non-Interactive Use
+Note the denylist covers destructive local commands, not remote-code patterns like `curl | bash` — don't rely on it as a full sandbox (tracked in [issue #4](https://github.com/iroy2000/coding-agent/issues/4)).
 
-If you're scripting `coding-agent` or running it in CI, use `--yes` to
-auto-approve both file-write confirmations and shell-command confirmations:
+### `--yes` for scripts/CI
 
 ```bash
 coding-agent chat --yes
 ```
 
-Use with caution outside of trusted/CI environments, since this removes
-the manual review step entirely.
+Skips both the file-write and shell-command confirmations. Only use this in trusted environments — it removes the one manual review step that exists.
 
-### Git Integration
-
-If your workspace is a git repository, you can opt in to having the agent
-auto-commit each successful file write/edit:
+### Git integration
 
 ```bash
 coding-agent chat --git-commit
 ```
 
-Auto-commits are tagged with a `[coding-agent]` prefix so they're easy to
-spot in `git log`. If a change turns out to be wrong, undo it safely:
+Commits each successful change with a `[coding-agent]` prefix, so they're easy to spot in `git log`. If one turns out to be wrong:
 
 ```bash
 coding-agent undo
 ```
 
-`undo` performs a `git revert` (not a destructive reset) and only ever
-touches commits the agent itself made — it refuses to act on any other
-commit, including its own revert commits, so you can't accidentally undo
-twice or revert someone else's work.
+`undo` does a `git revert`, not a reset, and only ever touches commits the agent made itself — it won't touch your own commits or its own revert commits, so you can't double-undo by accident.
 
 ---
 
 ## Configuration
 
-### View Configuration
-
 ```bash
 coding-agent config --show
-```
-
-Output:
-```
-╔════════════════════════════════════════╗
-║        Current Configuration           ║
-╚════════════════════════════════════════╝
-
-Ollama Configuration
-  > Host:  http://localhost:11434
-  > Model: codellama:latest
-
-Workspace Configuration
-  > Path:  /Users/you/project
-
-History Configuration
-  > Max Length: 50
-  > Enabled:     true
-```
-
-### Update Configuration
-
-#### Change Model
-```bash
 coding-agent config --set OLLAMA_MODEL=deepseek-coder
-```
-
-#### Change Ollama Host
-```bash
 coding-agent config --set OLLAMA_HOST=http://192.168.1.100:11434
-```
-
-#### Change Workspace
-```bash
 coding-agent config --set WORKSPACE_PATH=/path/to/project
-```
-
-#### Adjust History Length
-```bash
 coding-agent config --set MAX_HISTORY_LENGTH=100
 ```
 
-### Configuration Options
-
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable | Default | What it does |
+|---|---|---|
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `codellama:latest` | Model to use for chat |
-| `WORKSPACE_PATH` | `.` | Current working directory |
-| `MAX_HISTORY_LENGTH` | `50` | Max messages to keep in memory |
-| `HISTORY_ENABLED` | `true` | Enable conversation history |
+| `OLLAMA_MODEL` | `codellama:latest` | Model used for chat |
+| `WORKSPACE_PATH` | `.` | Working directory the agent operates in |
+| `MAX_HISTORY_LENGTH` | `50` | Max messages kept in memory per session |
+| `HISTORY_ENABLED` | `true` | Whether conversation history is saved |
 
 ---
 
-## History Management
-
-### List All Conversations
+## History
 
 ```bash
 coding-agent history --list
-```
-
-Output:
-```
-╔════════════════════════════════════════════════════════╗
-║              Conversation History                      ║
-╚════════════════════════════════════════════════════════╝
-
-┌─────────────────────┬──────────┬─────────────────────┐
-│ Session ID          │ Messages │ Last Updated        │
-├─────────────────────┼──────────┼─────────────────────┤
-│ 20251005_143022_... │ 12       │ 2025-10-05 14:45:10 │
-│ 20251005_120430_... │ 8        │ 2025-10-05 12:15:22 │
-│ 20251004_163015_... │ 24       │ 2025-10-04 17:20:45 │
-└─────────────────────┴──────────┴─────────────────────┘
-```
-
-### Limit Results
-
-```bash
 coding-agent history --list --limit 5
+coding-agent history --view <session-id>
+coding-agent history --delete <session-id>
+coding-agent history --export <session-id> --output chat.md --format md    # or json / txt
 ```
 
-### View Specific Conversation
-
-```bash
-coding-agent history --view 20251005_143022_123456
-```
-
-### Delete Conversation
-
-```bash
-coding-agent history --delete 20251005_143022_123456
-```
-
-### Export Conversations
-
-#### Export to Markdown
-```bash
-coding-agent history --export 20251005_143022_123456 \
-  --output conversation.md \
-  --format md
-```
-
-#### Export to JSON
-```bash
-coding-agent history --export 20251005_143022_123456 \
-  --output conversation.json \
-  --format json
-```
-
-#### Export to Plain Text
-```bash
-coding-agent history --export 20251005_143022_123456 \
-  --output conversation.txt \
-  --format txt
-```
+`--list` currently shows history across all workspaces, not just the current one — filtering by workspace is tracked in [issue #5](https://github.com/iroy2000/coding-agent/issues/5).
 
 ---
 
-## Advanced Usage
+## Multiple projects / models
 
-> **MCP Server integration** (exposing coding-agent to Claude Desktop and
-> other MCP clients via `coding-agent serve`) is documented in the
-> [README's MCP Server section](README.md#-mcp-server-beta) rather than
-> duplicated here.
-
-### Working with Multiple Projects
+Each workspace keeps its own history:
 
 ```bash
-# Project 1
-cd ~/projects/web-app
-coding-agent chat
-
-# Project 2
-cd ~/projects/data-pipeline
-coding-agent chat
+cd ~/projects/web-app && coding-agent chat
+cd ~/projects/data-pipeline && coding-agent chat
 ```
 
-Each project maintains its own conversation context and workspace.
-
-### Using Different Models
-
-For different types of tasks, you might want to use different models:
+Switch models depending on the task:
 
 ```bash
-# For code generation
-coding-agent config --set OLLAMA_MODEL=codellama
-
-# For general questions
-coding-agent config --set OLLAMA_MODEL=deepseek-coder
-
-# For faster responses (smaller model)
-coding-agent config --set OLLAMA_MODEL=codellama:7b-code
+coding-agent config --set OLLAMA_MODEL=codellama          # general coding
+coding-agent config --set OLLAMA_MODEL=deepseek-coder     # code generation
+coding-agent config --set OLLAMA_MODEL=codellama:7b-code  # faster, smaller
 ```
 
-### Remote Ollama Server
-
-If you have Ollama running on another machine:
+If Ollama runs on another machine, point at it:
 
 ```bash
 coding-agent config --set OLLAMA_HOST=http://192.168.1.100:11434
 ```
 
+MCP server integration (exposing `coding-agent` to Claude Desktop and other MCP clients via `coding-agent serve`) is covered in the [README](README.md#mcp-server-early--beta) rather than repeated here.
+
 ---
 
-## Best Practices
+## Writing good prompts
 
-### 1. Be Specific in Requests
+Vague requests get vague results. Instead of:
 
-❌ **Not ideal:**
 ```
 > Make this code better
 ```
 
-✅ **Better:**
+try being specific about what "better" means:
+
 ```
 > Refactor the process_data function in utils.py to:
 1. Add error handling for file not found
@@ -419,191 +246,53 @@ coding-agent config --set OLLAMA_HOST=http://192.168.1.100:11434
 3. Add docstrings
 ```
 
-### 2. Provide Context
+When asking about an error, include the message, the file/line, and what you were doing:
 
-When asking about errors, include:
-- Error message
-- File name and line number
-- What you were trying to do
-
-Example:
 ```
-> I'm getting "AttributeError: 'NoneType' object has no attribute 'split'" 
-> on line 42 of parser.py when trying to parse CSV files with empty cells.
-> How can I handle this?
+> I'm getting "AttributeError: 'NoneType' object has no attribute 'split'"
+> on line 42 of parser.py when parsing CSV files with empty cells. How
+> can I handle this?
 ```
 
-### 3. Review Generated Code
-
-Always review code before running it:
-- Check for security issues
-- Verify error handling
-- Test edge cases
-- Ensure it fits your coding style
-
-### 4. Use History for Learning
-
-Export conversations to create personal knowledge bases:
-```bash
-coding-agent history --export SESSION_ID --output notes.md --format md
-```
-
-### 5. Manage Workspace Carefully
-
-- Set workspace to project root
-- Ensure .gitignore is configured
-- The agent respects .gitignore patterns
+And always read generated code before running it — check error handling, edge cases, and whether it actually matches your project's conventions. The agent doesn't know your standards unless you tell it.
 
 ---
 
 ## Troubleshooting
 
-### Ollama Connection Issues
+**"Failed to connect to Ollama"**
+```bash
+ollama list                              # is it running?
+curl http://localhost:11434/api/tags     # is it reachable?
+coding-agent config --show               # check configured host
+```
 
-**Problem:** "Failed to connect to Ollama"
-
-**Solutions:**
-1. Verify Ollama is running:
-   ```bash
-   ollama list
-   ```
-
-2. Check Ollama status:
-   ```bash
-   curl http://localhost:11434/api/tags
-   ```
-
-3. Restart Ollama:
-   ```bash
-   # macOS/Linux
-   sudo systemctl restart ollama
-   ```
-
-4. Check configuration:
-   ```bash
-   coding-agent config --show
-   ```
-
-### Model Not Found
-
-**Problem:** "Model 'xyz' not found"
-
-**Solution:** Pull the model first:
+**"Model 'xyz' not found"**
 ```bash
 ollama pull codellama
 coding-agent config --set OLLAMA_MODEL=codellama:latest
 ```
 
-### Slow Responses
+**Slow responses** — try a smaller/quantized model:
+```bash
+coding-agent config --set OLLAMA_MODEL=codellama:7b-code
+```
 
-**Solutions:**
-1. Use a smaller model:
-   ```bash
-   coding-agent config --set OLLAMA_MODEL=codellama:7b-code
-   ```
+**History not saving**
+```bash
+coding-agent config --show                          # check HISTORY_ENABLED
+coding-agent config --set HISTORY_ENABLED=true
+ls -la ~/.coding-agent/history                       # check permissions
+```
 
-2. Check CPU/GPU usage during generation
+**"Permission denied" / "File not in workspace"** — the agent refuses to touch files outside the configured workspace as a safety measure. Check `coding-agent config --show` for the current `WORKSPACE_PATH` and verify the target file's permissions.
 
-3. Consider using quantized models
-
-### History Not Saving
-
-**Solutions:**
-1. Check if history is enabled:
-   ```bash
-   coding-agent config --show
-   ```
-
-2. Enable history:
-   ```bash
-   coding-agent config --set HISTORY_ENABLED=true
-   ```
-
-3. Check directory permissions:
-   ```bash
-   ls -la ~/.coding-agent/history
-   ```
-
-### File Operations Failing
-
-**Problem:** "Permission denied" or "File not in workspace"
-
-**Solutions:**
-1. Verify workspace path:
-   ```bash
-   coding-agent config --show
-   ```
-
-2. Check file permissions:
-   ```bash
-   ls -la /path/to/file
-   ```
-
-3. Ensure file is within workspace (security feature)
+**`.env` not picked up** — if you installed via `pip`/`pipx` (not `-e`), config loading currently has a bug where it doesn't reliably find your `.env` — see [issue #2](https://github.com/iroy2000/coding-agent/issues/2). Workaround: set the variable via `coding-agent config --set` instead, or export it as a real environment variable.
 
 ---
 
-## Tips & Tricks
+## Getting help
 
-### 1. Quick Model Switching
-
-Create aliases for different models:
-```bash
-alias agent-fast="coding-agent config --set OLLAMA_MODEL=codellama:7b-code && coding-agent chat"
-alias agent-smart="coding-agent config --set OLLAMA_MODEL=deepseek-coder && coding-agent chat"
-```
-
-### 2. Project Templates
-
-Create a project initialization script:
-```bash
-#!/bin/bash
-cd $1
-coding-agent init
-coding-agent chat
-```
-
-### 3. Batch Processing
-
-For multiple similar tasks:
-```bash
-for file in *.py; do
-    echo "Review $file for security issues" | coding-agent chat
-done
-```
-
-### 4. Integration with Git
-
-```bash
-# Before committing
-git diff | coding-agent chat
-# Ask: "Review these changes for potential issues"
-```
-
-### 5. Documentation Generation
-
-```bash
-# Ask agent to document your code
-coding-agent chat
-> Generate comprehensive docstrings for all functions in api/routes/users.py
-```
-
----
-
-## Keyboard Shortcuts
-
-While in chat mode:
-
-- `Ctrl+C` - Cancel current input
-- `Ctrl+D` - Exit chat (same as `exit`)
-- `Up Arrow` - Previous command (coming soon)
-- `Down Arrow` - Next command (coming soon)
-
----
-
-## Getting Help
-
-### Command Help
 ```bash
 coding-agent --help
 coding-agent chat --help
@@ -611,22 +300,6 @@ coding-agent config --help
 coding-agent history --help
 ```
 
-### In-Chat Help
-```
-> help
-```
+Or `help` inside a chat session.
 
-### Community Support
-- GitHub Issues: https://github.com/iroy2000/coding-agent-cli/issues
-- Discussions: https://github.com/iroy2000/coding-agent-cli/discussions
-
----
-
-## Next Steps
-
-- Explore [Advanced Examples](EXAMPLES.md)
-- Read [API Documentation](API.md)
-- Check out [Contributing Guide](CONTRIBUTING.md)
-- Join the community discussions
-
-Happy coding with your AI assistant! 🤖✨
+Bugs and feature requests: [GitHub Issues](https://github.com/iroy2000/coding-agent/issues).

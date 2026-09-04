@@ -1,10 +1,10 @@
 # Contributing to Coding Agent CLI
 
-First off, thank you for considering contributing to Coding Agent CLI! It's people like you that make this tool better for everyone.
+Thanks for taking a look. This is a small, mostly solo-maintained project, so contributions of any size — a bug report, a typo fix, a real feature — are genuinely useful.
 
-## Table of Contents
+## Contents
 
-1. [Code of Conduct](#code-of-conduct)
+1. [Ground rules](#ground-rules)
 2. [Getting Started](#getting-started)
 3. [Development Setup](#development-setup)
 4. [How to Contribute](#how-to-contribute)
@@ -15,26 +15,9 @@ First off, thank you for considering contributing to Coding Agent CLI! It's peop
 
 ---
 
-## Code of Conduct
+## Ground rules
 
-### Our Pledge
-
-We are committed to providing a friendly, safe, and welcoming environment for all contributors, regardless of experience level, gender identity, sexual orientation, disability, personal appearance, body size, race, ethnicity, age, religion, or nationality.
-
-### Expected Behavior
-
-- Be respectful and inclusive
-- Welcome newcomers and help them get started
-- Accept constructive criticism gracefully
-- Focus on what is best for the community
-- Show empathy towards other community members
-
-### Unacceptable Behavior
-
-- Harassment, discrimination, or derogatory comments
-- Trolling, insulting/derogatory comments, and personal attacks
-- Publishing others' private information
-- Other conduct which could reasonably be considered inappropriate
+Be respectful, assume good faith, and keep feedback about the code, not the person. Harassment or personal attacks aren't tolerated. That's it — this isn't a large enough project to need much more than that.
 
 ---
 
@@ -75,8 +58,8 @@ src/coding_agent/
 
 ```bash
 # Fork the repository on GitHub, then:
-git clone https://github.com/YOUR_USERNAME/coding-agent-cli.git
-cd coding-agent-cli
+git clone https://github.com/YOUR_USERNAME/coding-agent.git
+cd coding-agent
 ```
 
 ### 2. Create Virtual Environment
@@ -215,12 +198,12 @@ mypy src/
 Always use type hints for function parameters and return values:
 
 ```python
-# Good ✅
+# Good
 def process_file(file_path: str, mode: str = "r") -> dict:
     """Process a file and return metadata."""
     ...
 
-# Bad ❌
+# Avoid
 def process_file(file_path, mode="r"):
     ...
 ```
@@ -255,14 +238,14 @@ def calculate_total(items: List[Dict], tax_rate: float) -> float:
 Be explicit with error handling:
 
 ```python
-# Good ✅
+# Good
 try:
     result = risky_operation()
 except SpecificException as e:
     logger.error(f"Operation failed: {e}")
     raise CustomException("User-friendly message") from e
 
-# Bad ❌
+# Avoid
 try:
     result = risky_operation()
 except:
@@ -446,7 +429,7 @@ section, and best practices.
 
 1. **Update your fork:**
    ```bash
-   git remote add upstream https://github.com/iroy2000/coding-agent-cli.git
+   git remote add upstream https://github.com/iroy2000/coding-agent.git
    git fetch upstream
    git rebase upstream/main
    ```
@@ -571,35 +554,15 @@ coding-agent config --set OLLAMA_MODEL=codellama:34b
 
 ## Project Roadmap
 
-Check [PLANNING.md](PLANNING.md) for current development status and future plans.
-
-Current focus areas:
-- Improving test coverage
-- Performance optimizations
-- Documentation enhancements
-- Plugin system design
-- Multi-provider support
+Current and planned work is tracked in [GitHub Issues](https://github.com/iroy2000/coding-agent/issues), not a separate planning doc.
 
 ---
 
 ## Getting Help
 
-- 📖 Read the [Usage Guide](USAGE_GUIDE.md)
-- 💬 Ask in [Discussions](https://github.com/iroy2000/coding-agent-cli/discussions)
-- 🐛 Report bugs in [Issues](https://github.com/iroy2000/coding-agent-cli/issues)
-- 📧 Email: (to be added)
+- [Usage Guide](USAGE_GUIDE.md)
+- [Issues](https://github.com/iroy2000/coding-agent/issues) for bugs and feature requests
 
 ---
 
-## Recognition
-
-Contributors are recognized in:
-- README.md Contributors section
-- Release notes
-- Project documentation
-
----
-
-Thank you for contributing! 🎉
-
-Every contribution, no matter how small, makes a difference. We appreciate your time and effort in making Coding Agent CLI better!
+Thanks for reading this far — even fixing a typo helps.
