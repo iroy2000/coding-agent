@@ -26,7 +26,9 @@ log "Implementing issue #$ISSUE_NUMBER: $ISSUE_TITLE"
 
 # Fresh worktree so this never disturbs the operator's own working tree or
 # risks touching main.
-rm -rf "$WORKTREE_DIR"
+git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+git branch -D "$BRANCH" 2>/dev/null || true
+git worktree prune
 git fetch origin main --quiet
 git worktree add -B "$BRANCH" "$WORKTREE_DIR" origin/main --quiet
 

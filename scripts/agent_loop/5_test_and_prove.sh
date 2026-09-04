@@ -19,7 +19,8 @@ mkdir -p "$PROOF_DIR"
 BRANCH="$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)"
 log "Testing PR #$PR_NUMBER (branch $BRANCH)"
 
-rm -rf "$WORKTREE_DIR"
+git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+git worktree prune
 git fetch origin "$BRANCH" --quiet
 git worktree add "$WORKTREE_DIR" "origin/$BRANCH" --quiet
 
@@ -40,8 +41,35 @@ STATUS="FAIL"
 echo "$TEST_EXIT_LINE" | grep -q "failed\|error" || STATUS="PASS"
 
 PROOF_PNG="$PROOF_DIR/proof.png"
+IMAGE_URL=""
 if command -v freeze >/dev/null 2>&1; then
     freeze "$TRANSCRIPT" -o "$PROOF_PNG" -c full >/dev/null 2>&1 || true
+fi
+
+if [ -f "$PROOF_PNG" ]; then
+    REPO_SLUG="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+    REPO_ID="$(gh api "repos/$REPO_SLUG" --jq .id 2>/dev/null || true)"
+    case "$REPO_ID" in
+        ''|*[!0-9]*)
+            log "Could not resolve repository_id for $REPO_SLUG; skipping image upload, text proof only."
+            ;;
+        *)
+            TOKEN="$(gh auth token)"
+            IMAGE_URL="$(curl --fail-with-body -sS -X POST \
+                "https://uploads.github.com/user-attachments/assets" \
+                --url-query "name=agent-loop-proof-pr-$PR_NUMBER.png" \
+                --url-query "content_type=image/png" \
+                --url-query "repository_id=$REPO_ID" \
+                -H "Content-Type: application/octet-stream" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Authorization: Bearer $TOKEN" \
+                --data-binary "@$PROOF_PNG" 2>/dev/null | jq -r .url 2>/dev/null || true)"
+            case "$IMAGE_URL" in
+                https://*) log "Uploaded screenshot proof: $IMAGE_URL" ;;
+                *) log "Screenshot upload failed; falling back to text-only proof."; IMAGE_URL="" ;;
+            esac
+            ;;
+    esac
 fi
 
 COMMENT_FILE="$PROOF_DIR/comment.md"
@@ -50,24 +78,18 @@ COMMENT_FILE="$PROOF_DIR/comment.md"
     echo
     echo "**Result: $STATUS**"
     echo
+    if [ -n "$IMAGE_URL" ]; then
+        echo "![test proof]($IMAGE_URL)"
+        echo
+    fi
     echo '```'
     tail -30 "$TRANSCRIPT"
     echo '```'
 } > "$COMMENT_FILE"
 
-if [ -f "$PROOF_PNG" ]; then
-    UPLOAD_URL="$(gh api \
-        -H "Accept: application/vnd.github+json" \
-        --method POST \
-        /repos/{owner}/{repo}/issues/comments 2>/dev/null || true)"
-    # Attaching real binary images requires the user-attachments upload
-    # flow (see .github/skills github-pr-media); fall back to text-only
-    # proof if that isn't wired up in this environment.
-    log "Screenshot proof generated at $PROOF_PNG (attach manually or via github-pr-media skill if desired)."
-fi
-
 gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
-log "Posted test proof comment on PR #$PR_NUMBER (status: $STATUS)"
+log "Posted test proof comment on PR #$PR_NUMBER (status: $STATUS, screenshot: ${IMAGE_URL:-none})"
 
-rm -rf "$WORKTREE_DIR"
+git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+git worktree prune
 [ "$STATUS" = "PASS" ]

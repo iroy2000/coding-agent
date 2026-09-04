@@ -41,5 +41,6 @@ where each element has this exact shape:
 EOF
 
 run_copilot "$PROMPT_FILE" "$IDEAS_FILE"
+extract_json "$IDEAS_FILE"
 log "Ideas written to $IDEAS_FILE"
 cat "$IDEAS_FILE"

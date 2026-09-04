@@ -21,8 +21,15 @@ every stage of improving this very project:
 ## Why this is safe to run unattended
 
 - **Every stage is a separate, bounded `copilot -p` invocation** with
-  `--max-ai-credits` set (default 20, see `lib.sh`), so a single stage can
-  never run away with unbounded spend.
+  `--max-ai-credits` set (default 40, see `lib.sh`) and a per-invocation
+  usage/cost JSON sidecar file, so a single stage can never run away with
+  unbounded spend and cost is auditable after the fact.
+- **A broad tool denylist applies to every nested agent invocation**
+  (`COPILOT_DENY_TOOLS` in `lib.sh`): no pushing/force-pushing to `main`,
+  no tagging releases, no merging/closing PRs itself, no editing repo
+  settings or GitHub Actions workflows/secrets, no `sudo`. This is
+  defense-in-depth on top of `--no-ask-user`, not a sandbox — see issue #4
+  in this repo for why a denylist alone is never a complete safety net.
 - **Implementation and review-response happen in an isolated `git
   worktree` on a dedicated branch** (`agent/issue-<n>`), never on the
   operator's own checkout and never on `main`. `git push origin main` and
@@ -65,11 +72,16 @@ for debugging or resuming a partial cycle):
 | `2_judge.sh` | Adversarially review ideas against the real codebase + open issues; approve at most one |
 | `3_create_issue.sh` | File the approved idea as a GitHub issue (`ai-generated` label) |
 | `4_implement.sh <issue#>` | Implement the issue, write/run tests, commit, push, open a PR |
-| `5_test_and_prove.sh <pr#>` | Independently re-test the PR branch and post a proof comment (test transcript + a real PNG rendering of it via `freeze`) |
+| `5_test_and_prove.sh <pr#>` | Independently re-test the PR branch and post a proof comment, including a real embedded screenshot uploaded via GitHub's attachment API |
 | `6_respond_to_review.sh <pr#>` | Address open review/PR comments and push fixes |
+| `find_backlog_issue.sh` | Find the oldest `ai-generated` issue with no linked open PR yet ("backlog-first": `run_cycle.sh` implements this before brainstorming something new) |
+| `cleanup.sh` | Prune local worktrees/branches for issues whose PR has since been merged/closed |
 
-State (prompts, raw model output, worktrees) is written to
-`.agent_loop_state/` at the repo root, which is gitignored.
+State (prompts, raw model output, per-invocation usage/cost JSON,
+worktrees) is written to `.agent_loop_state/` at the repo root, which is
+gitignored. `run_cycle.sh` holds an `mkdir`-based lock for the duration of
+a cycle (see `with_lock` in `lib.sh`) so scheduling it frequently via cron/
+launchd never overlaps with a still-running previous cycle.
 
 ## Requirements
 

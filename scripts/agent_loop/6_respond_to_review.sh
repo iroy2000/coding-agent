@@ -24,7 +24,8 @@ if [ -z "$COMMENTS" ] || [ "$COMMENTS" = "null" ]; then
 fi
 
 BRANCH="$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)"
-rm -rf "$WORKTREE_DIR"
+git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+git worktree prune
 git fetch origin "$BRANCH" --quiet
 git worktree add "$WORKTREE_DIR" "origin/$BRANCH" --quiet
 
@@ -49,4 +50,5 @@ EOF
 (cd "$WORKTREE_DIR" && run_copilot "$PROMPT_FILE" "$RESULT_FILE")
 log "Review-response session finished:"
 cat "$RESULT_FILE"
-rm -rf "$WORKTREE_DIR"
+git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+git worktree prune

@@ -38,5 +38,6 @@ fences, no commentary) of this exact shape:
 EOF
 
 run_copilot "$PROMPT_FILE" "$VERDICT_FILE"
+extract_json "$VERDICT_FILE"
 log "Verdict written to $VERDICT_FILE"
 cat "$VERDICT_FILE"
