@@ -159,7 +159,9 @@ class TestHistoryCommand:
         history_mgr.add_message(session_id, role="user", content="hello")
 
         # Widen the terminal so Rich doesn't truncate the session ID column.
-        result = runner.invoke(app, ["history", "--list"], env={"COLUMNS": "200"})
+        result = runner.invoke(
+            app, ["history", "--list", "--workspace", str(tmp_path)], env={"COLUMNS": "200"}
+        )
         assert result.exit_code == 0
         assert session_id in result.stdout
 
