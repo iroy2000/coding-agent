@@ -62,8 +62,12 @@ dmypy.json
 # published). Public-facing docs are explicitly un-ignored below.
 *.md
 !README.md
-!ROADMAP.md
 !CONTRIBUTING.md
 !EXAMPLES.md
 !USAGE_GUIDE.md
-!architecture/*.md
+
+# Internal architecture and roadmap notes - kept local/private, not published.
+architecture/
+
+# Scratch/experiment files, not part of the project.
+scripts/sandbox/
