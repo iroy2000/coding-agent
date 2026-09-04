@@ -190,6 +190,35 @@ class TestConfigDisplay:
         assert "Ollama Model" in captured.out
 
 
+class TestConfigDotenvDiscovery:
+    """Regression tests for issue #2: .env silently ignored on real installs."""
+
+    def test_loads_dotenv_from_cwd_even_when_module_file_is_elsewhere(
+        self, monkeypatch, tmp_path
+    ):
+        """Config() must find a CWD-local .env even if the calling module's
+        __file__ (e.g. site-packages/coding_agent/utils/config.py in a real,
+        non-editable install) lives far away from the project directory.
+        """
+        for key in ["OLLAMA_HOST", "OLLAMA_MODEL"]:
+            monkeypatch.delenv(key, raising=False)
+
+        project_dir = tmp_path / "some_project"
+        project_dir.mkdir()
+        (project_dir / ".env").write_text("OLLAMA_MODEL=my-custom-model\n")
+
+        fake_site_packages = tmp_path / "site-packages" / "coding_agent" / "utils"
+        fake_site_packages.mkdir(parents=True)
+        monkeypatch.setattr(
+            config_module, "__file__", str(fake_site_packages / "config.py")
+        )
+        monkeypatch.chdir(project_dir)
+
+        cfg = Config()
+
+        assert cfg.ollama_model == "my-custom-model"
+
+
 class TestGlobalConfigSingleton:
     def test_get_config_returns_same_instance(self, clean_env):
         cfg1 = get_config()
