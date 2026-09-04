@@ -1,6 +1,8 @@
 """File manager for workspace file operations."""
 
 import os
+import re
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -8,6 +10,23 @@ import pathspec
 from rich.console import Console
 
 console = Console()
+
+# Patterns that are always blocked, regardless of confirmation, because they
+# are almost never intentional in a coding-assistant workflow and can cause
+# irreversible damage to the machine (not just the workspace).
+_DANGEROUS_COMMAND_PATTERNS = [
+    r"rm\s+-[a-z]*r[a-z]*f[a-z]*\s+/(\s|$)",  # rm -rf /
+    r"rm\s+-[a-z]*f[a-z]*r[a-z]*\s+/(\s|$)",  # rm -fr /
+    r"rm\s+-[a-z]*r[a-z]*f[a-z]*\s+~",  # rm -rf ~
+    r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;",  # classic fork bomb
+    r"\bmkfs(\.\w+)?\b",
+    r"\bdd\b.*\bof=/dev/",
+    r">\s*/dev/sd[a-z]",
+    r"\bsudo\b",
+    r"\bshutdown\b",
+    r"\breboot\b",
+    r":>\s*/",  # truncating arbitrary root-level files
+]
 
 
 class FileManager:
@@ -375,3 +394,70 @@ class FileManager:
             return self._is_safe_path(path) and path.exists() and path.is_dir()
         except Exception:
             return False
+
+    @staticmethod
+    def is_command_dangerous(command: str) -> bool:
+        """
+        Check whether a shell command matches a known-destructive pattern.
+
+        This is a best-effort safety net (not a sandbox) that blocks the most
+        common ways an agent could damage the host machine, e.g. `rm -rf /`,
+        fork bombs, `sudo`, or writing directly to block devices.
+
+        Args:
+            command: Shell command to check
+
+        Returns:
+            True if the command matches a dangerous pattern and should be blocked
+        """
+        return any(
+            re.search(pattern, command, re.IGNORECASE)
+            for pattern in _DANGEROUS_COMMAND_PATTERNS
+        )
+
+    def run_command(self, command: str, timeout: int = 60) -> Tuple[bool, str]:
+        """
+        Run a shell command inside the workspace directory.
+
+        This allows the agent to run things like test suites, linters, or
+        build tools so it can verify its own changes. Commands run with the
+        workspace directory as the current working directory. Known
+        destructive commands are always blocked; callers (e.g. the agent's
+        confirmation flow) are responsible for any additional user consent.
+
+        Args:
+            command: Shell command to execute
+            timeout: Maximum number of seconds to allow the command to run
+
+        Returns:
+            Tuple of (success, combined stdout/stderr output or error message)
+        """
+        if not command or not command.strip():
+            return False, "Command cannot be empty"
+
+        if self.is_command_dangerous(command):
+            return False, f"Command blocked for safety (matches a destructive pattern): {command}"
+
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                cwd=self.workspace,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+
+            output = result.stdout or ""
+            if result.stderr:
+                output = f"{output}\n{result.stderr}" if output else result.stderr
+
+            if result.returncode == 0:
+                return True, output.strip() or "(command completed with no output)"
+
+            return False, f"Command exited with code {result.returncode}:\n{output.strip()}"
+
+        except subprocess.TimeoutExpired:
+            return False, f"Command timed out after {timeout} seconds: {command}"
+        except Exception as e:
+            return False, f"Error running command: {str(e)}"

@@ -1,14 +1,18 @@
 """Core agent logic for orchestrating LLM and file operations."""
 
+import difflib
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from rich.console import Console
+from rich.prompt import Confirm
+from rich.syntax import Syntax
 
 from coding_agent.llm.ollama_client import OllamaClient
 from coding_agent.llm.prompts import get_system_prompt
 from coding_agent.storage.history import HistoryManager
 from coding_agent.tools.file_manager import FileManager
+from coding_agent.tools.git_manager import GitManager
 from coding_agent.utils.display import (
     print_agent_message,
     print_code_block,
@@ -33,6 +37,11 @@ class CodingAgent:
         model: str = "codellama:latest",
         max_history: int = 50,
         enable_history: bool = True,
+        auto_approve_commands: bool = False,
+        confirm_command: Optional[Callable[[str], bool]] = None,
+        auto_approve_writes: bool = False,
+        confirm_write: Optional[Callable[[str, str], bool]] = None,
+        enable_git_auto_commit: bool = False,
     ) -> None:
         """
         Initialize the coding agent.
@@ -43,14 +52,36 @@ class CodingAgent:
             model: Model name to use
             max_history: Maximum number of messages to keep in history
             enable_history: Whether to enable history persistence
+            auto_approve_commands: If True, skip the confirmation prompt before
+                running shell commands (e.g. for `--yes`/non-interactive/CI use)
+            confirm_command: Optional callable that takes the command string and
+                returns True/False to approve/deny it. Defaults to an interactive
+                Rich confirmation prompt. Primarily used to inject a fake
+                confirmation in tests.
+            auto_approve_writes: If True, skip the diff-preview confirmation
+                prompt before writing or editing files (e.g. for `--yes`/CI use)
+            confirm_write: Optional callable that takes (path, unified_diff_text)
+                and returns True/False to approve/deny applying the change.
+                Defaults to an interactive Rich confirmation prompt showing the
+                diff. Primarily used to inject a fake confirmation in tests.
+            enable_git_auto_commit: If True (and the workspace is a git repo),
+                automatically commit each successful WRITE_FILE/EDIT_FILE with
+                a message tagged `[coding-agent] ...`, so changes can always be
+                reviewed/undone via git. Opt-in, off by default.
         """
         self.workspace_path = workspace_path
         self.model = model
         self.file_manager = FileManager(workspace_path)
+        self.git_manager = GitManager(workspace_path)
         self.llm_client = OllamaClient(host=ollama_host, model=model)
         self.max_history = max_history
         self.conversation_history: List[Dict[str, str]] = []
         self.system_prompt = get_system_prompt(workspace_path)
+        self.auto_approve_commands = auto_approve_commands
+        self.confirm_command = confirm_command or self._default_confirm_command
+        self.auto_approve_writes = auto_approve_writes
+        self.confirm_write = confirm_write or self._default_confirm_write
+        self.enable_git_auto_commit = enable_git_auto_commit
         
         # History management
         self.enable_history = enable_history
@@ -63,6 +94,83 @@ class CodingAgent:
                 workspace_path=workspace_path,
                 model=model
             )
+
+    def _default_confirm_command(self, command: str) -> bool:
+        """
+        Default interactive confirmation prompt shown before running a shell command.
+
+        Args:
+            command: The shell command the agent wants to run
+
+        Returns:
+            True if the user approves running the command
+        """
+        console.print(f"\n[bold yellow]Agent wants to run a shell command:[/bold yellow] [cyan]{command}[/cyan]")
+        return Confirm.ask("Allow this command to run?", default=False)
+
+    def _build_diff(self, path: str, old_content: str, new_content: str) -> str:
+        """
+        Build a unified diff between old and new file content.
+
+        Args:
+            path: File path (used for the diff headers)
+            old_content: Original file content (empty string for new files)
+            new_content: Proposed new file content
+
+        Returns:
+            Unified diff text, or an empty string if there is no difference
+        """
+        if old_content == new_content:
+            return ""
+
+        diff_lines = difflib.unified_diff(
+            old_content.splitlines(keepends=True),
+            new_content.splitlines(keepends=True),
+            fromfile=f"a/{path}",
+            tofile=f"b/{path}",
+        )
+        return "".join(diff_lines)
+
+    def _default_confirm_write(self, path: str, diff_text: str) -> bool:
+        """
+        Default interactive confirmation prompt shown before writing/editing a file.
+
+        Displays a unified diff of the proposed change and asks the user to
+        approve it before it's applied to disk.
+
+        Args:
+            path: File path that would be written/edited
+            diff_text: Unified diff text of the proposed change
+
+        Returns:
+            True if the user approves applying the change
+        """
+        console.print(f"\n[bold yellow]Agent wants to write changes to:[/bold yellow] [cyan]{path}[/cyan]")
+        console.print(Syntax(diff_text, "diff", theme="monokai", line_numbers=False, word_wrap=True))
+        return Confirm.ask(f"Apply these changes to {path}?", default=True)
+
+    def _maybe_auto_commit(self, change_description: str) -> None:
+        """
+        Auto-commit the current workspace state if git auto-commit is enabled.
+
+        Silently no-ops if auto-commit is disabled, the workspace isn't a git
+        repository, or there's nothing to commit. Failures are surfaced as a
+        system message so the user notices, but never raise/abort the turn.
+
+        Args:
+            change_description: Short description used as the commit message
+                (e.g. "WRITE_FILE path/to/file.py")
+        """
+        if not self.enable_git_auto_commit:
+            return
+
+        success, message = self.git_manager.auto_commit(change_description)
+        if success:
+            if "no changes" not in message.lower():
+                print_success_message(message)
+        else:
+            print_error_message(f"Git auto-commit failed: {message}")
+
 
     def _add_to_history(self, role: str, content: str, metadata: Optional[Dict] = None) -> None:
         """
@@ -132,6 +240,7 @@ class CodingAgent:
           new text
           ```
         - LIST_FILES: path/to/directory
+        - RUN_COMMAND: shell command to execute
 
         Args:
             response: Agent's response text
@@ -150,6 +259,11 @@ class CodingAgent:
         list_pattern = r"LIST_FILES:\s*([^\n]+)"
         for match in re.finditer(list_pattern, response, re.IGNORECASE):
             operations.append(("LIST_FILES", {"path": match.group(1).strip()}))
+
+        # Pattern for RUN_COMMAND
+        run_command_pattern = r"RUN_COMMAND:\s*([^\n]+)"
+        for match in re.finditer(run_command_pattern, response, re.IGNORECASE):
+            operations.append(("RUN_COMMAND", {"command": match.group(1).strip()}))
 
         # Pattern for WRITE_FILE with content
         write_pattern = r"WRITE_FILE:\s*([^\n]+)[\s\n]+CONTENT:\s*```(?:\w+)?\s*(.*?)```"
@@ -175,7 +289,7 @@ class CodingAgent:
         Execute a file operation.
 
         Args:
-            operation: Operation type (READ_FILE, WRITE_FILE, EDIT_FILE, LIST_FILES)
+            operation: Operation type (READ_FILE, WRITE_FILE, EDIT_FILE, LIST_FILES, RUN_COMMAND)
             params: Operation parameters
 
         Returns:
@@ -202,14 +316,23 @@ class CodingAgent:
             elif operation == "WRITE_FILE":
                 path = params["path"]
                 content = params["content"]
+
+                file_exists = self.file_manager.file_exists(path)
+                _, existing_content = self.file_manager.read_file(path) if file_exists else (False, "")
+                diff_text = self._build_diff(path, existing_content if file_exists else "", content)
+
+                if diff_text and not self.auto_approve_writes:
+                    if not self.confirm_write(path, diff_text):
+                        message = f"Write to '{path}' was not approved by the user"
+                        print_file_operation("Writing", path, "error")
+                        return False, message
+
                 print_file_operation("Writing", path, "in_progress")
-                
-                # Check if file exists to determine overwrite
-                overwrite = self.file_manager.file_exists(path)
                 success, message = self.file_manager.write_file(path, content, overwrite=True)
                 
                 if success:
                     print_file_operation("Writing", path, "success")
+                    self._maybe_auto_commit(f"WRITE_FILE {path}")
                 else:
                     print_file_operation("Writing", path, "error")
                 
@@ -219,12 +342,24 @@ class CodingAgent:
                 path = params["path"]
                 old_text = params["old_text"]
                 new_text = params["new_text"]
+
+                read_success, existing_content = self.file_manager.read_file(path)
+                if read_success and old_text in existing_content:
+                    new_content = existing_content.replace(old_text, new_text)
+                    diff_text = self._build_diff(path, existing_content, new_content)
+
+                    if diff_text and not self.auto_approve_writes:
+                        if not self.confirm_write(path, diff_text):
+                            message = f"Edit to '{path}' was not approved by the user"
+                            print_file_operation("Editing", path, "error")
+                            return False, message
+
                 print_file_operation("Editing", path, "in_progress")
-                
                 success, message = self.file_manager.edit_file(path, old_text, new_text)
                 
                 if success:
                     print_file_operation("Editing", path, "success")
+                    self._maybe_auto_commit(f"EDIT_FILE {path}")
                 else:
                     print_file_operation("Editing", path, "error")
                 
@@ -249,6 +384,26 @@ class CodingAgent:
                 else:
                     print_file_operation("Listing", path, "error")
                     return False, files
+
+            elif operation == "RUN_COMMAND":
+                command = params["command"]
+
+                if not self.auto_approve_commands and not self.confirm_command(command):
+                    message = f"Command was not approved by the user: {command}"
+                    print_file_operation("Running", command, "error")
+                    return False, message
+
+                print_file_operation("Running", command, "in_progress")
+                success, output = self.file_manager.run_command(command)
+
+                if success:
+                    print_file_operation("Running", command, "success")
+                    result = f"Output of `{command}`:\n{output}"
+                    self._add_to_history("system", result)
+                    return True, result
+                else:
+                    print_file_operation("Running", command, "error")
+                    return False, output
 
             else:
                 return False, f"Unknown operation: {operation}"
@@ -315,6 +470,10 @@ class CodingAgent:
                         operation_results.append(f"File: {params['path']}\nContent:\n{result}")
                     elif operation == "LIST_FILES" and success:
                         print_system_message(result)
+                        operation_results.append(result)
+                    elif operation == "RUN_COMMAND" and success:
+                        print_system_message(result)
+                        has_read_operation = True
                         operation_results.append(result)
                     else:
                         print_file_operation_result(success, result, operation)
@@ -388,6 +547,7 @@ class CodingAgent:
         try:
             self.workspace_path = new_path
             self.file_manager = FileManager(new_path)
+            self.git_manager = GitManager(new_path)
             self.system_prompt = get_system_prompt(new_path)
             
             # Update system message in history

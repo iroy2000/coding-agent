@@ -204,3 +204,72 @@ class TestFileManager:
         # Just verify the method returns tuple format correctly
         assert isinstance(success, bool)
         assert isinstance(message, str)
+
+
+class TestRunCommand:
+    """Test suite for FileManager.run_command and its safety gate."""
+
+    def test_run_command_success(self, sample_workspace):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, output = fm.run_command("echo hello-world")
+        assert success is True
+        assert "hello-world" in output
+
+    def test_run_command_runs_in_workspace_directory(self, sample_workspace):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, output = fm.run_command("ls")
+        assert success is True
+        assert "README.md" in output
+
+    def test_run_command_nonzero_exit_reports_failure(self, sample_workspace):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, output = fm.run_command("exit 1")
+        assert success is False
+        assert "exited with code 1" in output
+
+    def test_run_command_captures_stderr(self, sample_workspace):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, output = fm.run_command("echo err-message 1>&2 && exit 3")
+        assert success is False
+        assert "err-message" in output
+        assert "exited with code 3" in output
+
+    def test_run_command_empty_command_rejected(self, sample_workspace):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, message = fm.run_command("   ")
+        assert success is False
+        assert "empty" in message.lower()
+
+    def test_run_command_timeout(self, sample_workspace):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, message = fm.run_command("sleep 2", timeout=1)
+        assert success is False
+        assert "timed out" in message.lower()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rm -rf /",
+            "rm -rf ~",
+            "sudo rm -rf /var",
+            "shutdown -h now",
+            "reboot",
+            "dd if=/dev/zero of=/dev/sda",
+            "mkfs.ext4 /dev/sda1",
+            ":(){ :|:& };:",
+        ],
+    )
+    def test_dangerous_commands_are_blocked(self, sample_workspace, command):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        assert fm.is_command_dangerous(command) is True
+        success, message = fm.run_command(command)
+        assert success is False
+        assert "blocked" in message.lower()
+
+    @pytest.mark.parametrize(
+        "command",
+        ["pytest -q", "npm test", "echo hello", "ls -la", "make build"],
+    )
+    def test_safe_commands_are_not_blocked(self, sample_workspace, command):
+        fm = FileManager(workspace_path=str(sample_workspace))
+        assert fm.is_command_dangerous(command) is False

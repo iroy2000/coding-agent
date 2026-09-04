@@ -28,6 +28,12 @@ LIST_FILES: path/to/directory
   - Use this to list files in a directory
   - Example: LIST_FILES: .
   - Example: LIST_FILES: src/
+
+RUN_COMMAND: shell command to execute
+  - Use this to run tests, linters, builds, or other shell commands in the workspace
+  - Example: RUN_COMMAND: pytest -q
+  - Example: RUN_COMMAND: npm test
+  - The user must approve the command before it runs, and the output will be shown to you
   
 WRITE_FILE: path/to/file
 CONTENT:

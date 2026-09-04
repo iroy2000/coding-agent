@@ -58,5 +58,12 @@ dmypy.json
 # Ruff
 .ruff_cache/
 
-# All MD files
+# Internal/scratch markdown docs (session status notes, not meant to be
+# published). Public-facing docs are explicitly un-ignored below.
 *.md
+!README.md
+!ROADMAP.md
+!CONTRIBUTING.md
+!EXAMPLES.md
+!USAGE_GUIDE.md
+!architecture/*.md

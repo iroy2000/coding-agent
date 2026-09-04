@@ -12,7 +12,19 @@ console = Console()
 
 
 @app.command()
-def chat() -> None:
+def chat(
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Auto-approve shell commands and file writes/edits without prompting (use with caution)",
+    ),
+    git_commit: bool = typer.Option(
+        False,
+        "--git-commit",
+        help="Auto-commit each successful file write/edit to git (only if the workspace is a git repo)",
+    ),
+) -> None:
     """Start an interactive chat session with the coding agent."""
     from rich.prompt import Prompt
 
@@ -57,6 +69,9 @@ def chat() -> None:
         model=config.ollama_model,
         max_history=config.max_history_length,
         enable_history=config.history_enabled,
+        auto_approve_commands=yes,
+        auto_approve_writes=yes,
+        enable_git_auto_commit=git_commit,
     )
     
     # Print welcome message
@@ -188,6 +203,35 @@ def init() -> None:
 
     console.print("\n[green]>[/green] Initialization complete!")
     console.print("\nYou can now start using: [cyan]coding-agent chat[/cyan]")
+
+
+@app.command()
+def undo(
+    workspace: str = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Workspace path to run the undo in (defaults to configured workspace)",
+    ),
+) -> None:
+    """Revert the last agent-made git commit (safe: only undoes commits coding-agent itself made)."""
+    from coding_agent.tools.git_manager import GitManager
+    from coding_agent.utils.config import get_config
+
+    workspace_path = workspace or str(get_config().workspace_path)
+    git_manager = GitManager(workspace_path)
+
+    if not git_manager.is_repo():
+        console.print(f"[red]'{workspace_path}' is not a git repository.[/red]")
+        console.print("[dim]Undo requires the workspace to be a git repo with `--git-commit` enabled.[/dim]")
+        raise typer.Exit(1)
+
+    success, message = git_manager.undo_last_agent_commit()
+    if success:
+        console.print(f"[green]{message}[/green]")
+    else:
+        console.print(f"[red]{message}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
