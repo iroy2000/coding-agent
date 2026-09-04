@@ -26,6 +26,25 @@ _DANGEROUS_COMMAND_PATTERNS = [
     r"\bshutdown\b",
     r"\breboot\b",
     r":>\s*/",  # truncating arbitrary root-level files
+    # Remote script fetched and piped straight into a shell interpreter.
+    r"\b(curl|wget)\b[^|;\n]*\|\s*(sudo\s+)?(sh|bash|zsh|python[23]?|perl)\b",
+    # Same pattern via process substitution / explicit redirection, e.g.
+    # `bash <(curl ...)` or `wget -O- ... | bash`.
+    r"\b(sh|bash|zsh)\s+<\(\s*(curl|wget)\b",
+    # Base64 (or similar) decoded payload piped into a shell.
+    r"\bbase64\b[^|;\n]*\|\s*(sudo\s+)?(sh|bash|zsh)\b",
+    # Inline code execution via interpreter flags, a common obfuscation vector.
+    r"\bpython[23]?\s+-c\b",
+    r"\bperl\s+-e\b",
+    r"\bruby\s+-e\b",
+    r"\bnode\s+-e\b",
+    r"\beval\b",
+    r"\bexec\s*\(",
+    # Writing to sensitive dotfiles/credentials that affect the user account
+    # beyond the workspace.
+    r">>?\s*~?/?\.ssh/",
+    r">>?\s*~?/?\.(bash_profile|bashrc|zshrc|profile)\b",
+    r">>?\s*~/\.aws/",
 ]
 
 
