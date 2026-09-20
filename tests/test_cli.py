@@ -5,6 +5,7 @@ client and are out of scope here; `undo` is fully self-contained (git only)
 and safe to exercise end-to-end.
 """
 
+import re
 import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,6 +15,20 @@ from typer.testing import CliRunner
 from coding_agent.cli import app
 
 runner = CliRunner()
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes.
+
+    Typer/Rich force colored, wrapped `--help` output whenever the
+    ``GITHUB_ACTIONS`` env var is set (see typer.rich_utils.FORCE_TERMINAL),
+    which can split option names like ``--workspace`` across escape
+    sequences. Stripping ANSI codes keeps these assertions stable both
+    locally and in CI.
+    """
+    return _ANSI_ESCAPE_RE.sub("", text)
 
 
 def _init_git_repo(path: Path) -> None:
@@ -58,15 +73,16 @@ class TestUndoCommand:
     def test_help_lists_workspace_option(self):
         result = runner.invoke(app, ["undo", "--help"])
         assert result.exit_code == 0
-        assert "--workspace" in result.stdout
+        assert "--workspace" in _strip_ansi(result.stdout)
 
 
 class TestChatCommandHelp:
     def test_yes_and_git_commit_flags_present(self):
         result = runner.invoke(app, ["chat", "--help"])
         assert result.exit_code == 0
-        assert "--yes" in result.stdout
-        assert "--git-commit" in result.stdout
+        output = _strip_ansi(result.stdout)
+        assert "--yes" in output
+        assert "--git-commit" in output
 
 
 class TestChatCommand:
