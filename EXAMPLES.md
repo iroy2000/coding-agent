@@ -1,8 +1,8 @@
-# Coding Agent CLI - Examples
+# Examples
 
-Real-world examples of using Coding Agent CLI for various tasks.
+Prompts and expected output for common tasks. The MCP server section is captured from real runs; the rest are representative — actual output will vary with your model and codebase.
 
-## Table of Contents
+## Contents
 
 1. [Code Generation](#code-generation)
 2. [Refactoring](#refactoring)
@@ -11,7 +11,7 @@ Real-world examples of using Coding Agent CLI for various tasks.
 5. [Documentation](#documentation)
 6. [Code Review](#code-review)
 7. [Project Setup](#project-setup)
-8. [MCP Server (Beta)](#mcp-server-beta)
+8. [MCP Server](#mcp-server-beta)
 
 ---
 
@@ -664,7 +664,7 @@ coding-agent serve --enable-history-tools
 
 Workspace: /Users/royu/development/my-project
 Transport: stdio
-Safe Mode: ⚠️  Disabled
+Safe Mode: ❌ Disabled
 
 Enabled Tools:
   ✅ File tools: read_file, list_files
@@ -694,7 +694,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "coding-agent": {
-      "command": "/Users/royu/development/coding-agent-cli/venv/bin/coding-agent",
+      "command": "/path/to/coding-agent/venv/bin/coding-agent",
       "args": ["serve", "--workspace", "/Users/royu/development/my-project"],
       "env": {}
     }
@@ -733,7 +733,7 @@ npm install -g @modelcontextprotocol/inspector
 **Step 2: Start Inspector**
 ```bash
 npx @modelcontextprotocol/inspector \
-  /Users/royu/development/coding-agent-cli/venv/bin/coding-agent \
+  /path/to/coding-agent/venv/bin/coding-agent \
   serve --workspace /Users/royu/development/my-project
 ```
 
@@ -863,11 +863,8 @@ cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
 
 ---
 
-## Next Steps
+## Next steps
 
-- Review [Usage Guide](USAGE_GUIDE.md) for detailed commands
-- Check [MCP Status](MCP_STATUS.md) for implementation roadmap
-- Read [API Documentation](API.md) for technical details
-- Explore [Contributing Guide](CONTRIBUTING.md) to help improve the tool
-
-Happy coding! 🚀
+- [Usage Guide](USAGE_GUIDE.md) for detailed command reference
+- [Contributing Guide](CONTRIBUTING.md) if you want to work on the tool itself
+- [GitHub Issues](https://github.com/iroy2000/coding-agent/issues) for the current roadmap and known bugs

@@ -17,6 +17,10 @@ demos, and live protocol checks during development.
   `test_mcp_protocol.py`), plus a startup validator (`validate_mcp_server.py`).
 - `sandbox/` — gitignored scratch space for one-off experiments; nothing
   here is tracked or published.
+- `agent_loop/` — the agentic self-improvement loop: brainstorm ideas ->
+  judge/research them -> file a GitHub issue -> spawn a coding agent to
+  implement it and open a PR -> independently test + post proof. See
+  `agent_loop/README.md` for the full design and safety guardrails.
 
 Run any of these from the repo root, e.g.:
 

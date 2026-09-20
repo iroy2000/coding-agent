@@ -71,3 +71,4 @@ architecture/
 
 # Scratch/experiment files, not part of the project.
 scripts/sandbox/
+.agent_loop_state/
