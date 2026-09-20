@@ -25,7 +25,7 @@ Be respectful, assume good faith, and keep feedback about the code, not the pers
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - Git
 - Ollama (for testing LLM features)
 - Basic understanding of Python and CLI applications
