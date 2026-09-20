@@ -168,6 +168,38 @@ class TestHistoryManager:
         sessions = hm.list_sessions(limit=3)
         assert len(sessions) == 3
 
+    def test_list_sessions_filtered_by_workspace(self, temp_dir):
+        """Test listing sessions filtered by workspace_path."""
+        history_dir = temp_dir / "history"
+        hm = HistoryManager(history_dir=str(history_dir))
+
+        workspace_a = temp_dir / "workspace_a"
+        workspace_b = temp_dir / "workspace_b"
+        workspace_a.mkdir()
+        workspace_b.mkdir()
+
+        session_a = hm.create_session(str(workspace_a), "model1")
+        time.sleep(0.01)
+        session_b = hm.create_session(str(workspace_b), "model2")
+
+        # No filter: both sessions returned
+        assert len(hm.list_sessions()) == 2
+
+        # Filter to workspace_a: only session_a returned
+        sessions = hm.list_sessions(workspace_path=str(workspace_a))
+        assert len(sessions) == 1
+        assert sessions[0]["session_id"] == session_a
+
+        # Filter to workspace_b: only session_b returned
+        sessions = hm.list_sessions(workspace_path=str(workspace_b))
+        assert len(sessions) == 1
+        assert sessions[0]["session_id"] == session_b
+
+        # Filter to an unrelated workspace: nothing returned
+        workspace_c = temp_dir / "workspace_c"
+        workspace_c.mkdir()
+        assert hm.list_sessions(workspace_path=str(workspace_c)) == []
+
     def test_delete_session(self, temp_dir):
         """Test deleting a session."""
         history_dir = temp_dir / "history"

@@ -272,28 +272,52 @@ def config(
 
 @app.command()
 def history(
-    list_sessions: bool = typer.Option(False, "--list", help="List all conversation sessions"),
+    list_sessions: bool = typer.Option(False, "--list", help="List conversation sessions (current workspace by default; use --all for every workspace)"),
     view: str = typer.Option(None, "--view", help="View specific session by ID"),
     delete: str = typer.Option(None, "--delete", help="Delete session by ID"),
     export: str = typer.Option(None, "--export", help="Export session by ID"),
     output: str = typer.Option(None, "--output", help="Output file for export"),
     format: str = typer.Option("md", "--format", help="Export format (json/txt/md)"),
     limit: int = typer.Option(20, "--limit", help="Number of sessions to list"),
+    workspace: str = typer.Option(
+        ".",
+        "--workspace",
+        "-w",
+        help="Only list sessions from this workspace (default: current directory)",
+    ),
+    all_workspaces: bool = typer.Option(
+        False,
+        "--all",
+        help="List sessions from all workspaces, ignoring --workspace",
+    ),
 ) -> None:
     """View conversation history."""
+    from pathlib import Path
+
     from coding_agent.storage.history import HistoryManager
     from rich.table import Table
     
     history_mgr = HistoryManager()
     
     if list_sessions:
-        sessions = history_mgr.list_sessions(limit=limit)
+        filter_workspace = None if all_workspaces else workspace
+        sessions = history_mgr.list_sessions(limit=limit, workspace_path=filter_workspace)
         
         if not sessions:
-            console.print("[yellow]No conversation sessions found[/yellow]")
+            if filter_workspace:
+                console.print(
+                    f"[yellow]No conversation sessions found for workspace: "
+                    f"{Path(filter_workspace).resolve()}[/yellow]"
+                )
+                console.print("[dim]Use --all to see sessions from every workspace[/dim]")
+            else:
+                console.print("[yellow]No conversation sessions found[/yellow]")
             return
         
-        table = Table(title=f"Recent Conversation Sessions (showing {len(sessions)})", 
+        title = f"Recent Conversation Sessions (showing {len(sessions)})"
+        if filter_workspace:
+            title += f" [workspace: {Path(filter_workspace).resolve()}]"
+        table = Table(title=title, 
                      show_header=True, header_style="bold cyan")
         table.add_column("Session ID", style="cyan")
         table.add_column("Created", style="white")
@@ -379,11 +403,13 @@ def history(
     else:
         console.print("[bold]Conversation History[/bold]\n")
         console.print("Available commands:")
-        console.print("  [cyan]--list[/cyan]              List all conversation sessions")
+        console.print("  [cyan]--list[/cyan]              List conversation sessions (current workspace by default)")
         console.print("  [cyan]--view SESSION_ID[/cyan]   View a specific session")
         console.print("  [cyan]--delete SESSION_ID[/cyan] Delete a session")
         console.print("  [cyan]--export SESSION_ID[/cyan] Export a session")
         console.print("  [cyan]--limit N[/cyan]           Limit number of sessions to show (default: 20)")
+        console.print("  [cyan]--workspace PATH[/cyan]    Only list sessions from PATH (default: current directory)")
+        console.print("  [cyan]--all[/cyan]               List sessions from all workspaces")
         console.print("\nExport options:")
         console.print("  [cyan]--output FILE[/cyan]      Output file path")
         console.print("  [cyan]--format FORMAT[/cyan]    Format: json, txt, or md (default: md)")
