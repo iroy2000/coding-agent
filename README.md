@@ -13,7 +13,7 @@ An interactive coding assistant that runs entirely on local LLMs via [Ollama](ht
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - [Ollama](https://ollama.com), installed and running
 
 Install Ollama:
