@@ -161,6 +161,51 @@ class TestFileManager:
         assert success is True
         assert not any("a/b/c/d" in f for f in files_depth_1)
 
+    def test_search_files_finds_pattern(self, sample_workspace):
+        """Test that search_files finds a text pattern in workspace files."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, matches = fm.search_files("def add")
+        assert success is True
+        assert any("src/utils.py" in m for m in matches)
+        assert any("def add" in m for m in matches)
+
+    def test_search_files_no_matches(self, sample_workspace):
+        """Test searching for a pattern that doesn't exist anywhere."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, matches = fm.search_files("nonexistent_symbol_xyz_123")
+        assert success is True
+        assert matches == []
+
+    def test_search_files_respects_gitignore(self, sample_workspace):
+        """Test that search_files skips files matched by .gitignore."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+        (sample_workspace / "secret.env.pyc").write_text("SECRET_PATTERN_XYZ = 1")
+
+        success, matches = fm.search_files("SECRET_PATTERN_XYZ")
+        assert success is True
+        assert matches == []
+
+    def test_search_files_empty_pattern(self, sample_workspace):
+        """Test that an empty search pattern is rejected."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, message = fm.search_files("")
+        assert success is False
+        assert "empty" in message.lower()
+
+    def test_search_files_directory_does_not_exist(self, sample_workspace):
+        """Test searching a non-existent directory."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, message = fm.search_files("pattern", directory="nope")
+        assert success is False
+        assert "does not exist" in message
+
+    def test_search_files_outside_workspace_blocked(self, sample_workspace):
+        """Test that searching outside the workspace root is blocked."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+        success, message = fm.search_files("pattern", directory="../../etc")
+        assert success is False
+        assert "outside workspace" in message
+
     def test_file_exists(self, sample_workspace):
         """Test checking if file exists."""
         fm = FileManager(workspace_path=str(sample_workspace))

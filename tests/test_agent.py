@@ -42,6 +42,11 @@ class TestParseRunCommand:
         operations = agent._parse_file_operations(response)
         assert operations == []
 
+    def test_parses_search_files(self, agent: CodingAgent):
+        response = "Let me look:\nSEARCH_FILES: def calculate_total\n"
+        operations = agent._parse_file_operations(response)
+        assert ("SEARCH_FILES", {"pattern": "def calculate_total"}) in operations
+
 
 class TestExecuteRunCommand:
     def test_runs_when_auto_approved(self, agent: CodingAgent):
@@ -99,6 +104,35 @@ class TestExecuteRunCommand:
         )
         assert success is False
         assert "exited with code 1" in result
+
+
+class TestExecuteSearchFiles:
+    def test_finds_matches_across_workspace(self, agent: CodingAgent, temp_dir: Path):
+        (temp_dir / "main.py").write_text("def calculate_total(items):\n    return sum(items)\n")
+        (temp_dir / "other.py").write_text("print('nothing to see here')\n")
+
+        success, result = agent._execute_file_operation(
+            "SEARCH_FILES", {"pattern": "calculate_total"}
+        )
+
+        assert success is True
+        assert "main.py" in result
+        assert "calculate_total" in result
+        assert "other.py" not in result
+
+    def test_no_matches_found(self, agent: CodingAgent, temp_dir: Path):
+        (temp_dir / "main.py").write_text("print('hello')\n")
+
+        success, result = agent._execute_file_operation(
+            "SEARCH_FILES", {"pattern": "nonexistent_symbol_xyz"}
+        )
+
+        assert success is True
+        assert "no matches" in result.lower()
+
+    def test_empty_pattern_fails(self, agent: CodingAgent):
+        success, result = agent._execute_file_operation("SEARCH_FILES", {"pattern": ""})
+        assert success is False
 
 
 class TestWriteFileDiffPreview:
