@@ -95,6 +95,14 @@ class TestUndoLastAgentCommit:
         assert success is False
         assert "not a git repository" in message.lower()
 
+    def test_friendly_message_when_repo_has_no_commits(self, temp_dir: Path):
+        _run(["init", "-q"], cwd=temp_dir)
+        gm = GitManager(str(temp_dir))
+        success, message = gm.undo_last_agent_commit()
+        assert success is False
+        assert message == "Nothing to undo yet — this repository has no commits."
+        assert "fatal:" not in message
+
     def test_fails_when_last_commit_is_not_from_agent(self, git_repo: Path):
         gm = GitManager(str(git_repo))
         success, message = gm.undo_last_agent_commit()

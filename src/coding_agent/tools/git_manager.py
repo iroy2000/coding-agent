@@ -124,7 +124,9 @@ class GitManager:
 
         success, message = self.get_last_commit_message()
         if not success:
-            return False, f"Could not read last commit: {message}"
+            if "does not have any commits yet" in message:
+                return False, "Nothing to undo yet — this repository has no commits."
+            return False, "Could not read last commit; the repository history may be unavailable."
 
         if not message.startswith(AGENT_COMMIT_PREFIX):
             return False, (
