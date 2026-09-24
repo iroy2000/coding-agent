@@ -159,6 +159,67 @@ class TestFileContent:
         assert "file.unknownext" in out
 
 
+class TestMarkupEscaping:
+    """Regression tests: Rich treats `[...]` as markup and silently drops
+    unrecognized bracketed spans (including their contents) unless escaped.
+    Any dynamic/user-controlled text containing brackets (code with type
+    hints/list literals, regex character classes, commit message prefixes
+    like `[coding-agent]`, paths, etc.) must render intact.
+    """
+
+    def test_print_agent_message_preserves_brackets(self, capsys):
+        display.print_agent_message("def foo(x: list[int]) -> dict[str, int]: pass")
+        out = capsys.readouterr().out
+        assert "list[int]" in out
+        assert "dict[str, int]" in out
+
+    def test_print_user_message_preserves_brackets(self, capsys):
+        display.print_user_message("what does list[int] mean?")
+        assert "list[int]" in capsys.readouterr().out
+
+    def test_print_system_message_preserves_brackets(self, capsys):
+        display.print_system_message("pattern '[a-z]+' matched")
+        assert "[a-z]+" in capsys.readouterr().out
+
+    def test_print_error_message_preserves_brackets(self, capsys):
+        display.print_error_message("invalid syntax near list[int]")
+        assert "list[int]" in capsys.readouterr().out
+
+    def test_print_success_message_preserves_brackets(self, capsys):
+        display.print_success_message("Committed: [coding-agent] WRITE_FILE newfile.py")
+        out = capsys.readouterr().out
+        assert "[coding-agent]" in out
+        assert "WRITE_FILE newfile.py" in out
+
+    def test_print_file_operation_preserves_brackets_in_path(self, capsys):
+        display.print_file_operation("Reading", "[test]/file.py", status="success")
+        assert "[test]/file.py" in capsys.readouterr().out
+
+    def test_print_workspace_info_preserves_brackets(self, capsys):
+        display.print_workspace_info("/tmp/[my project]", file_count=3)
+        assert "/tmp/[my project]" in capsys.readouterr().out
+
+    def test_print_file_list_preserves_brackets(self, capsys):
+        display.print_file_list(["src/[legacy]/main.py"])
+        assert "[legacy]" in capsys.readouterr().out
+
+    def test_print_file_content_preserves_brackets_in_path(self, capsys):
+        display.print_file_content("data", "[archive]/file.txt")
+        assert "[archive]/file.txt" in capsys.readouterr().out
+
+    def test_print_file_operation_result_preserves_brackets(self, capsys):
+        display.print_file_operation_result(True, "wrote list[int] type hint", operation="Write")
+        assert "list[int]" in capsys.readouterr().out
+
+    def test_stream_agent_response_preserves_brackets_in_output_and_return(self, capsys):
+        chunks = ["def foo(x: list[int])", " -> dict[str, int]: pass"]
+        result = display.stream_agent_response(iter(chunks))
+        out = capsys.readouterr().out
+        assert result == "def foo(x: list[int]) -> dict[str, int]: pass"
+        assert "list[int]" in out
+        assert "dict[str, int]" in out
+
+
 class TestFileOperationResult:
     def test_success(self, capsys):
         display.print_file_operation_result(True, "wrote file", operation="Write")

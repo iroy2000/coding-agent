@@ -2,6 +2,7 @@
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 
 app = typer.Typer(
     name="coding-agent",
@@ -174,7 +175,7 @@ def init() -> None:
     if not is_valid:
         console.print("[yellow]Configuration warnings:[/yellow]")
         for error in errors:
-            console.print(f"  [yellow]•[/yellow] {error}")
+            console.print(f"  [yellow]•[/yellow] {escape(error)}")
     else:
         console.print("[green]>[/green] Configuration is valid")
 
@@ -183,9 +184,9 @@ def init() -> None:
     success, message = test_llm_connection(config)
 
     if success:
-        console.print(f"[green]>[/green] {message}")
+        console.print(f"[green]>[/green] {escape(message)}")
     else:
-        console.print(f"[red]x[/red] {message}")
+        console.print(f"[red]x[/red] {escape(message)}")
         if config.llm_provider == "ollama":
             console.print("\n[yellow]Ollama Setup Instructions:[/yellow]")
             console.print("1. Install Ollama: https://ollama.com")
@@ -224,15 +225,15 @@ def undo(
     git_manager = GitManager(workspace_path)
 
     if not git_manager.is_repo():
-        console.print(f"[red]'{workspace_path}' is not a git repository.[/red]")
+        console.print(f"[red]'{escape(workspace_path)}' is not a git repository.[/red]")
         console.print("[dim]Undo requires the workspace to be a git repo with `--git-commit` enabled.[/dim]")
         raise typer.Exit(1)
 
     success, message = git_manager.undo_last_agent_commit()
     if success:
-        console.print(f"[green]{message}[/green]")
+        console.print(f"[green]{escape(message)}[/green]")
     else:
-        console.print(f"[red]{message}[/red]")
+        console.print(f"[red]{escape(message)}[/red]")
         raise typer.Exit(1)
 
 
@@ -381,17 +382,17 @@ def history(
                 timestamp = msg.get("timestamp", "")
                 
                 if role == "user":
-                    console.print(f"[bold cyan]You:[/bold cyan] {content}\n")
+                    console.print(f"[bold cyan]You:[/bold cyan] {escape(content)}\n")
                 elif role == "assistant":
-                    console.print(f"[bold green]Agent:[/bold green] {content}\n")
+                    console.print(f"[bold green]Agent:[/bold green] {escape(content)}\n")
                 else:
-                    console.print(f"[dim]{role}:[/dim] {content}\n")
+                    console.print(f"[dim]{escape(role)}:[/dim] {escape(content)}\n")
     
     elif delete:
         if history_mgr.delete_session(delete):
-            console.print(f"[green]>[/green] Session '{delete}' deleted")
+            console.print(f"[green]>[/green] Session '{escape(delete)}' deleted")
         else:
-            console.print(f"[red]Failed to delete session '{delete}'[/red]")
+            console.print(f"[red]Failed to delete session '{escape(delete)}'[/red]")
             raise typer.Exit(1)
     
     elif export:
@@ -399,9 +400,9 @@ def history(
             output = f"session_{export}.{format}"
         
         if history_mgr.export_session(export, output, format=format):
-            console.print(f"[green]>[/green] Session exported to: {output}")
+            console.print(f"[green]>[/green] Session exported to: {escape(output)}")
         else:
-            console.print(f"[red]Failed to export session '{export}'[/red]")
+            console.print(f"[red]Failed to export session '{escape(export)}'[/red]")
             raise typer.Exit(1)
     
     else:
@@ -500,7 +501,7 @@ def serve(
         
         # Display startup info
         console.print("\n[bold cyan]═══ MCP Server Starting ═══[/bold cyan]\n")
-        console.print(f"[dim]Workspace:[/dim] {workspace_path}")
+        console.print(f"[dim]Workspace:[/dim] {escape(str(workspace_path))}")
         console.print(f"[dim]Transport:[/dim] {transport}")
         console.print(f"[dim]Safe Mode:[/dim] {'✅ Enabled' if safe_mode else '❌ Disabled'}")
         console.print()
