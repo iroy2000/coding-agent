@@ -120,8 +120,16 @@ In-chat commands: `exit`/`quit`, `help`, `clear`, `workspace`, `models`.
 Settings live in a `.env` file in the project (or `~/.coding-agent/.env`):
 
 ```env
+LLM_PROVIDER=ollama              # ollama | openai | anthropic
+
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=codellama:latest
+
+OPENAI_API_KEY=                  # required if LLM_PROVIDER=openai
+OPENAI_MODEL=gpt-4o-mini
+
+ANTHROPIC_API_KEY=                # required if LLM_PROVIDER=anthropic
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 
 WORKSPACE_PATH=.
 
@@ -130,6 +138,16 @@ HISTORY_ENABLED=true
 
 SHOW_SPINNER=true
 SYNTAX_THEME=monokai
+```
+
+By default the agent talks to a local Ollama server. To use a hosted model
+instead, set `LLM_PROVIDER=openai` or `LLM_PROVIDER=anthropic` and the
+matching `*_API_KEY`, e.g.:
+
+```bash
+coding-agent config --set LLM_PROVIDER=openai
+coding-agent config --set OPENAI_API_KEY=sk-...
+coding-agent config --set OPENAI_MODEL=gpt-4o
 ```
 
 ## Things you can ask it

@@ -29,7 +29,7 @@ def chat(
     from rich.prompt import Prompt
 
     from coding_agent.agent import CodingAgent
-    from coding_agent.llm.ollama_client import OllamaClient
+    from coding_agent.llm.factory import create_llm_client, get_active_model, test_llm_connection
     from coding_agent.utils.config import get_config
     from coding_agent.utils.display import (
         print_error_message,
@@ -41,37 +41,33 @@ def chat(
 
     # Load configuration
     config = get_config()
-    
-    # Initialize Ollama client for connection check
-    client = OllamaClient(host=config.ollama_host, model=config.ollama_model)
-    
-    # Check connection
-    if not client.check_connection():
-        print_error_message(f"Cannot connect to Ollama at {config.ollama_host}")
-        console.print("\nPlease make sure:")
-        console.print("1. Ollama is installed and running")
-        console.print("2. Run: [cyan]coding-agent init[/cyan] to verify setup")
+
+    # Check connection for the configured LLM provider
+    connected, message = test_llm_connection(config)
+    if not connected:
+        print_error_message(message)
+        if config.llm_provider == "ollama":
+            console.print("\nPlease make sure:")
+            console.print("1. Ollama is installed and running")
+            console.print("2. Run: [cyan]coding-agent init[/cyan] to verify setup")
         raise typer.Exit(1)
-    
-    # Check model availability
-    if not client.check_model_exists():
-        print_error_message(f"Model '{config.ollama_model}' not found")
-        available = client.list_models()
-        if available:
-            console.print(f"\nAvailable models: {', '.join(available[:5])}")
-        console.print(f"\nTo pull the model, run: [cyan]ollama pull {config.ollama_model}[/cyan]")
+
+    try:
+        llm_client = create_llm_client(config)
+    except ImportError as e:
+        print_error_message(str(e))
         raise typer.Exit(1)
-    
+
     # Initialize agent with history enabled
     agent = CodingAgent(
         workspace_path=str(config.workspace_path),
-        ollama_host=config.ollama_host,
-        model=config.ollama_model,
+        model=get_active_model(config),
         max_history=config.max_history_length,
         enable_history=config.history_enabled,
         auto_approve_commands=yes,
         auto_approve_writes=yes,
         enable_git_auto_commit=git_commit,
+        llm_client=llm_client,
     )
     
     # Print welcome message
@@ -115,11 +111,12 @@ def chat(
                 continue
             
             if user_input.lower() == "models":
-                models = client.list_models()
+                models = llm_client.list_models()
+                active_model = get_active_model(config)
                 if models:
                     console.print("\n[bold]Available Models:[/bold]")
                     for model in models:
-                        marker = " [green](current)[/green]" if model == config.ollama_model else ""
+                        marker = " [green](current)[/green]" if model == active_model else ""
                         console.print(f"  • {model}{marker}")
                 else:
                     console.print("[yellow]No models found[/yellow]")
@@ -154,7 +151,7 @@ def init() -> None:
     from rich.panel import Panel
     from rich.prompt import Confirm
 
-    from coding_agent.llm.ollama_client import test_ollama_connection
+    from coding_agent.llm.factory import get_active_model, test_llm_connection
     from coding_agent.utils.config import get_config
 
     console.print(Panel.fit(
@@ -181,18 +178,23 @@ def init() -> None:
     else:
         console.print("[green]>[/green] Configuration is valid")
 
-    # Test Ollama connection
-    console.print("\n[bold]Testing Ollama connection...[/bold]")
-    success, message = test_ollama_connection(config.ollama_host, config.ollama_model)
+    # Test connection to the configured LLM provider
+    console.print(f"\n[bold]Testing {config.llm_provider} connection...[/bold]")
+    success, message = test_llm_connection(config)
 
     if success:
         console.print(f"[green]>[/green] {message}")
     else:
         console.print(f"[red]x[/red] {message}")
-        console.print("\n[yellow]Ollama Setup Instructions:[/yellow]")
-        console.print("1. Install Ollama: https://ollama.com")
-        console.print(f"2. Pull the model: [cyan]ollama pull {config.ollama_model}[/cyan]")
-        console.print(f"3. Or choose a different model in .env file")
+        if config.llm_provider == "ollama":
+            console.print("\n[yellow]Ollama Setup Instructions:[/yellow]")
+            console.print("1. Install Ollama: https://ollama.com")
+            console.print(f"2. Pull the model: [cyan]ollama pull {get_active_model(config)}[/cyan]")
+            console.print(f"3. Or choose a different model in .env file")
+        else:
+            console.print(
+                f"\n[yellow]Set {config.llm_provider.upper()}_API_KEY in your .env file and try again.[/yellow]"
+            )
 
         if not Confirm.ask("\nContinue anyway?", default=False):
             raise typer.Exit(1)

@@ -5,11 +5,15 @@ from typing import Generator, Optional
 import ollama
 from rich.console import Console
 
+from coding_agent.llm.base import LLMProvider
+
 console = Console()
 
 
-class OllamaClient:
+class OllamaClient(LLMProvider):
     """Client for interacting with Ollama."""
+
+    provider_name = "ollama"
 
     def __init__(self, host: str = "http://localhost:11434", model: str = "codellama:latest") -> None:
         """
