@@ -262,27 +262,27 @@ class CodingAgent:
         # Pattern for READ_FILE
         read_pattern = r"READ_FILE:\s*([^\n]+)"
         for match in re.finditer(read_pattern, response, re.IGNORECASE):
-            operations.append(("READ_FILE", {"path": match.group(1).strip()}))
+            operations.append((match.start(), "READ_FILE", {"path": match.group(1).strip()}))
 
         # Pattern for LIST_FILES
         list_pattern = r"LIST_FILES:\s*([^\n]+)"
         for match in re.finditer(list_pattern, response, re.IGNORECASE):
-            operations.append(("LIST_FILES", {"path": match.group(1).strip()}))
+            operations.append((match.start(), "LIST_FILES", {"path": match.group(1).strip()}))
 
         # Pattern for RUN_COMMAND
         run_command_pattern = r"RUN_COMMAND:\s*([^\n]+)"
         for match in re.finditer(run_command_pattern, response, re.IGNORECASE):
-            operations.append(("RUN_COMMAND", {"command": match.group(1).strip()}))
+            operations.append((match.start(), "RUN_COMMAND", {"command": match.group(1).strip()}))
 
         # Pattern for SEARCH_FILES
         search_pattern = r"SEARCH_FILES:\s*([^\n]+)"
         for match in re.finditer(search_pattern, response, re.IGNORECASE):
-            operations.append(("SEARCH_FILES", {"pattern": match.group(1).strip()}))
+            operations.append((match.start(), "SEARCH_FILES", {"pattern": match.group(1).strip()}))
 
         # Pattern for WRITE_FILE with content
         write_pattern = r"WRITE_FILE:\s*([^\n]+)[\s\n]+CONTENT:\s*```(?:\w+)?\s*(.*?)```"
         for match in re.finditer(write_pattern, response, re.IGNORECASE | re.DOTALL):
-            operations.append(("WRITE_FILE", {
+            operations.append((match.start(), "WRITE_FILE", {
                 "path": match.group(1).strip(),
                 "content": match.group(2).strip()
             }))
@@ -290,13 +290,19 @@ class CodingAgent:
         # Pattern for EDIT_FILE with old and new content
         edit_pattern = r"EDIT_FILE:\s*([^\n]+)[\s\n]+OLD:\s*```(?:\w+)?\s*(.*?)```[\s\n]+NEW:\s*```(?:\w+)?\s*(.*?)```"
         for match in re.finditer(edit_pattern, response, re.IGNORECASE | re.DOTALL):
-            operations.append(("EDIT_FILE", {
+            operations.append((match.start(), "EDIT_FILE", {
                 "path": match.group(1).strip(),
                 "old_text": match.group(2).strip(),
                 "new_text": match.group(3).strip()
             }))
 
-        return operations
+        # Each pattern is matched independently, so operations of different
+        # types are collected out of their original relative order (e.g. all
+        # RUN_COMMAND matches before any WRITE_FILE match). Sort by position
+        # in the response text so multi-step sequences (e.g. "write a script,
+        # then run it") execute in the order the model actually wrote them.
+        operations.sort(key=lambda op: op[0])
+        return [(operation, params) for _, operation, params in operations]
 
     def _execute_file_operation(self, operation: str, params: Dict[str, str]) -> Tuple[bool, str]:
         """

@@ -48,6 +48,57 @@ class TestParseRunCommand:
         assert ("SEARCH_FILES", {"pattern": "def calculate_total"}) in operations
 
 
+class TestParseFileOperationsPreservesOrder:
+    """Regression tests: operations of different types were previously
+    collected via independent regex passes and appended type-by-type, so a
+    response with e.g. WRITE_FILE followed by RUN_COMMAND would execute
+    RUN_COMMAND first - breaking sequences like "write a script, then run
+    it". Operations must now execute in the order they appear in the
+    response text, regardless of type."""
+
+    def test_write_then_run_preserves_order(self, agent: CodingAgent):
+        response = (
+            "WRITE_FILE: script.sh\n"
+            "CONTENT:\n```\necho hello\n```\n\n"
+            "RUN_COMMAND: cat script.sh\n"
+        )
+        operations = agent._parse_file_operations(response)
+        assert [op for op, _ in operations] == ["WRITE_FILE", "RUN_COMMAND"]
+
+    def test_run_then_write_preserves_order(self, agent: CodingAgent):
+        response = (
+            "RUN_COMMAND: mkdir -p out\n\n"
+            "WRITE_FILE: out/script.sh\n"
+            "CONTENT:\n```\necho hello\n```\n"
+        )
+        operations = agent._parse_file_operations(response)
+        assert [op for op, _ in operations] == ["RUN_COMMAND", "WRITE_FILE"]
+
+    def test_mixed_types_and_repeats_preserve_order(self, agent: CodingAgent):
+        response = (
+            "READ_FILE: a.txt\n"
+            "RUN_COMMAND: echo one\n"
+            "LIST_FILES: .\n"
+            "SEARCH_FILES: foo\n"
+            "EDIT_FILE: b.txt\n"
+            "OLD:\n```\nx\n```\n"
+            "NEW:\n```\ny\n```\n"
+            "READ_FILE: c.txt\n"
+        )
+        operations = agent._parse_file_operations(response)
+        assert [op for op, _ in operations] == [
+            "READ_FILE",
+            "RUN_COMMAND",
+            "LIST_FILES",
+            "SEARCH_FILES",
+            "EDIT_FILE",
+            "READ_FILE",
+        ]
+        # Confirm the two READ_FILE calls kept their distinct paths in order
+        read_paths = [params["path"] for op, params in operations if op == "READ_FILE"]
+        assert read_paths == ["a.txt", "c.txt"]
+
+
 class TestExecuteRunCommand:
     def test_runs_when_auto_approved(self, agent: CodingAgent):
         agent.auto_approve_commands = True
