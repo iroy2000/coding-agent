@@ -398,7 +398,7 @@ class TestHistoryCommand:
     def test_view_unknown_session(self, monkeypatch, tmp_path):
         self._isolate_home(monkeypatch, tmp_path)
         result = runner.invoke(app, ["history", "--view", "does-not-exist"])
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "not found" in result.stdout.lower()
 
     def test_view_existing_session_shows_messages(self, monkeypatch, tmp_path):
@@ -417,7 +417,7 @@ class TestHistoryCommand:
     def test_delete_unknown_session_reports_failure(self, monkeypatch, tmp_path):
         self._isolate_home(monkeypatch, tmp_path)
         result = runner.invoke(app, ["history", "--delete", "does-not-exist"])
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "failed to delete" in result.stdout.lower()
 
     def test_delete_existing_session(self, monkeypatch, tmp_path):
@@ -446,6 +446,28 @@ class TestHistoryCommand:
         assert result.exit_code == 0
         assert "exported" in result.stdout.lower()
         assert output_file.exists()
+
+    def test_export_unknown_session_reports_failure(self, monkeypatch, tmp_path):
+        self._isolate_home(monkeypatch, tmp_path)
+        result = runner.invoke(app, ["history", "--export", "does-not-exist"])
+        assert result.exit_code == 1
+        assert "failed to export" in result.stdout.lower()
+
+    def test_export_unsupported_format_reports_failure(self, monkeypatch, tmp_path):
+        self._isolate_home(monkeypatch, tmp_path)
+        from coding_agent.storage.history import HistoryManager
+
+        history_mgr = HistoryManager()
+        session_id = history_mgr.create_session(workspace_path=str(tmp_path), model="codellama:latest")
+
+        output_file = tmp_path / "exported.xml"
+        result = runner.invoke(
+            app,
+            ["history", "--export", session_id, "--output", str(output_file), "--format", "xml"],
+        )
+        assert result.exit_code == 1
+        assert "failed to export" in result.stdout.lower()
+        assert not output_file.exists()
 
     def test_no_flags_shows_usage_hint(self, monkeypatch, tmp_path):
         self._isolate_home(monkeypatch, tmp_path)

@@ -48,6 +48,12 @@ class TestFileManager:
         # Verify file was created
         assert (sample_workspace / "new_file.md").exists()
         assert (sample_workspace / "new_file.md").read_text() == content
+        # A brand-new file must be reported as "created", not "overwritten"
+        # (regression: path.exists() was previously checked *after* the
+        # write, so it was always True and the message always said
+        # "overwritten" even for new files).
+        assert "created" in message
+        assert "overwritten" not in message
 
     def test_write_file_creates_directories(self, sample_workspace):
         """Test writing file creates parent directories."""
@@ -70,9 +76,10 @@ class TestFileManager:
         assert success1 is True
         assert (sample_workspace / "test.txt").read_text() == original
         
-        success2, _ = fm.write_file("test.txt", updated, overwrite=True)
+        success2, message2 = fm.write_file("test.txt", updated, overwrite=True)
         assert success2 is True
         assert (sample_workspace / "test.txt").read_text() == updated
+        assert "overwritten" in message2
 
     def test_write_file_outside_workspace(self, sample_workspace):
         """Test writing file outside workspace is prevented."""

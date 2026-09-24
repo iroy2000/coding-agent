@@ -304,6 +304,13 @@ class HistoryManager:
                         f.write(f"{content}\n\n")
                         f.write("---\n\n")
 
+            else:
+                console.print(
+                    f"[red]Unsupported export format: '{format}'. "
+                    f"Use one of: json, txt, md[/red]"
+                )
+                return False
+
             return True
 
         except Exception as e:

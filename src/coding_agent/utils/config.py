@@ -43,12 +43,34 @@ class Config:
         self.workspace_path = Path(os.getenv("WORKSPACE_PATH", ".")).resolve()
 
         # History settings
-        self.max_history_length = int(os.getenv("MAX_HISTORY_LENGTH", "50"))
+        self.max_history_length = self._parse_int_env("MAX_HISTORY_LENGTH", 50)
         self.history_enabled = os.getenv("HISTORY_ENABLED", "true").lower() == "true"
 
         # Display settings
         self.show_spinner = os.getenv("SHOW_SPINNER", "true").lower() == "true"
         self.syntax_theme = os.getenv("SYNTAX_THEME", "monokai")
+
+    @staticmethod
+    def _parse_int_env(key: str, default: int) -> int:
+        """
+        Parse an integer environment variable, falling back to a default
+        (with a warning) instead of raising if the value is malformed.
+
+        This guards against a corrupted/hand-edited .env file (or a bad
+        value written via `config --set`) permanently crashing the CLI on
+        every subsequent invocation.
+        """
+        raw = os.getenv(key)
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            console.print(
+                f"[yellow]Warning: {key}={raw!r} is not a valid integer; "
+                f"using default {default}[/yellow]"
+            )
+            return default
 
     def ensure_directories(self) -> None:
         """Create necessary directories if they don't exist."""
@@ -146,6 +168,27 @@ class Config:
             console.print(f"Valid keys: {', '.join(valid_keys.keys())}")
             return False
 
+        # Validate the value before writing anything, so a bad value can
+        # never reach the .env file and brick subsequent CLI invocations.
+        if key == "MAX_HISTORY_LENGTH":
+            try:
+                parsed_length = int(value)
+            except ValueError:
+                console.print(f"[red]MAX_HISTORY_LENGTH must be an integer, got '{value}'[/red]")
+                return False
+            if parsed_length < 1:
+                console.print(
+                    f"[red]MAX_HISTORY_LENGTH must be at least 1, got {parsed_length}[/red]"
+                )
+                return False
+        elif key == "LLM_PROVIDER":
+            valid_providers = ("ollama", "openai", "anthropic")
+            if value.strip().lower() not in valid_providers:
+                console.print(
+                    f"[red]LLM_PROVIDER must be one of {valid_providers}, got '{value}'[/red]"
+                )
+                return False
+
         # Update the environment variable
         os.environ[key] = value
 
@@ -171,6 +214,21 @@ class Config:
         else:
             # Create new .env file
             env_file.write_text(f"{key}={value}\n")
+
+        # Reflect the change on this in-memory instance immediately, so a
+        # subsequent display() in the same process shows the new value
+        # instead of the stale one captured at __init__ time.
+        attr_name = valid_keys[key]
+        if key == "MAX_HISTORY_LENGTH":
+            setattr(self, attr_name, int(value))
+        elif key in ("HISTORY_ENABLED", "SHOW_SPINNER"):
+            setattr(self, attr_name, value.strip().lower() == "true")
+        elif key == "LLM_PROVIDER":
+            setattr(self, attr_name, value.strip().lower())
+        elif key == "WORKSPACE_PATH":
+            setattr(self, attr_name, Path(value).resolve())
+        else:
+            setattr(self, attr_name, value)
 
         console.print(f"[green]Updated {key}={value}[/green]")
         console.print("[yellow]Restart the application for changes to take effect[/yellow]")

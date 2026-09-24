@@ -304,6 +304,24 @@ class TestHistoryManager:
         assert result is False
         assert not output_path.exists()
 
+    def test_export_session_unsupported_format(self, temp_dir, sample_history_session):
+        """An unsupported format must fail loudly (return False, write no
+        file) instead of silently reporting success without writing
+        anything."""
+        history_dir = temp_dir / "history"
+        history_dir.mkdir(parents=True)
+        hm = HistoryManager(history_dir=str(history_dir))
+
+        session_id = sample_history_session["session_id"]
+        session_file = history_dir / f"session_{session_id}.json"
+        session_file.write_text(json.dumps(sample_history_session))
+
+        output_path = temp_dir / "export.xml"
+        result = hm.export_session(session_id, str(output_path), format="xml")
+
+        assert result is False
+        assert not output_path.exists()
+
     def test_search_sessions(self, temp_dir):
         """Test searching sessions by content."""
         history_dir = temp_dir / "history"
