@@ -4,6 +4,7 @@ from typing import Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.syntax import Syntax
@@ -19,7 +20,7 @@ def print_user_message(message: str) -> None:
     Args:
         message: User's message
     """
-    console.print(f"[bold cyan]You:[/bold cyan] {message}")
+    console.print(f"[bold cyan]You:[/bold cyan] {escape(message)}")
 
 
 def print_agent_message(message: str) -> None:
@@ -29,7 +30,7 @@ def print_agent_message(message: str) -> None:
     Args:
         message: Agent's message
     """
-    console.print(f"[bold green]Agent:[/bold green] {message}")
+    console.print(f"[bold green]Agent:[/bold green] {escape(message)}")
 
 
 def print_system_message(message: str) -> None:
@@ -39,7 +40,7 @@ def print_system_message(message: str) -> None:
     Args:
         message: System message
     """
-    console.print(f"[yellow]{message}[/yellow]")
+    console.print(f"[yellow]{escape(message)}[/yellow]")
 
 
 def print_error_message(message: str) -> None:
@@ -49,7 +50,7 @@ def print_error_message(message: str) -> None:
     Args:
         message: Error message
     """
-    console.print(f"[bold red]Error:[/bold red] {message}")
+    console.print(f"[bold red]Error:[/bold red] {escape(message)}")
 
 
 def print_success_message(message: str) -> None:
@@ -59,7 +60,7 @@ def print_success_message(message: str) -> None:
     Args:
         message: Success message
     """
-    console.print(f"[green]>[/green] {message}")
+    console.print(f"[green]>[/green] {escape(message)}")
 
 
 def print_file_operation(operation: str, path: str, status: str = "in_progress") -> None:
@@ -87,7 +88,7 @@ def print_file_operation(operation: str, path: str, status: str = "in_progress")
     icon = indicators.get(status, "•")
     color = colors.get(status, "white")
     
-    console.print(f"[{color}]{icon}[/{color}] {operation} [cyan]{path}[/cyan]")
+    console.print(f"[{color}]{icon}[/{color}] {operation} [cyan]{escape(path)}[/cyan]")
 
 
 def print_code_block(code: str, language: str = "python", theme: str = "monokai") -> None:
@@ -251,7 +252,7 @@ def print_workspace_info(workspace_path: str, file_count: Optional[int] = None) 
         workspace_path: Path to workspace
         file_count: Number of files (optional)
     """
-    info = f"[bold]Current Workspace:[/bold] [cyan]{workspace_path}[/cyan]"
+    info = f"[bold]Current Workspace:[/bold] [cyan]{escape(workspace_path)}[/cyan]"
     if file_count is not None:
         info += f"\n[bold]Files:[/bold] {file_count}"
     
@@ -273,7 +274,9 @@ def stream_agent_response(text_generator) -> str:
     full_response = ""
     for chunk in text_generator:
         if chunk:
-            console.print(chunk, end="")
+            # Escape only for display - the raw chunk (with any literal
+            # brackets intact) is what gets returned/parsed downstream.
+            console.print(escape(chunk), end="")
             full_response += chunk
     
     console.print()  # New line at the end
@@ -306,14 +309,14 @@ def print_file_list(files: list, title: str = "Files") -> None:
         files_by_dir[dir_name].append(file_name)
 
     # Display grouped files
-    console.print(f"\n[bold cyan]{title}[/bold cyan] ([dim]{len(files)} files[/dim])")
+    console.print(f"\n[bold cyan]{escape(title)}[/bold cyan] ([dim]{len(files)} files[/dim])")
     console.print()
     
     for dir_name in sorted(files_by_dir.keys()):
         if dir_name != ".":
-            console.print(f"[blue]{dir_name}/[/blue]")
+            console.print(f"[blue]{escape(dir_name)}/[/blue]")
         for file_name in sorted(files_by_dir[dir_name]):
-            console.print(f"  [dim]→[/dim] {file_name}")
+            console.print(f"  [dim]→[/dim] {escape(file_name)}")
         console.print()
 
 
@@ -364,7 +367,7 @@ def print_file_content(content: str, file_path: str, language: str = None, max_l
         content += f"\n... ({len(lines) - max_lines} more lines)"
 
     # Print with syntax highlighting
-    console.print(f"\n[bold cyan]File:[/bold cyan] [cyan]{file_path}[/cyan]")
+    console.print(f"\n[bold cyan]File:[/bold cyan] [cyan]{escape(file_path)}[/cyan]")
     print_code_block(content, language=language)
 
 
@@ -378,6 +381,6 @@ def print_file_operation_result(success: bool, message: str, operation: str = "O
         operation: Type of operation
     """
     if success:
-        console.print(f"[green]>[/green] [bold]{operation}:[/bold] {message}")
+        console.print(f"[green]>[/green] [bold]{escape(operation)}:[/bold] {escape(message)}")
     else:
-        console.print(f"[red]x[/red] [bold]{operation} failed:[/bold] {message}")
+        console.print(f"[red]x[/red] [bold]{escape(operation)} failed:[/bold] {escape(message)}")

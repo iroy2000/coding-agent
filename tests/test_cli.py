@@ -414,6 +414,23 @@ class TestHistoryCommand:
         assert "Session Details" in result.stdout
         assert "hello there" in result.stdout
 
+    def test_view_preserves_brackets_in_message_content(self, monkeypatch, tmp_path):
+        """Regression: Rich markup silently drops `[...]` spans unless escaped,
+        so stored message content containing brackets (e.g. code with type
+        hints) must still render intact.
+        """
+        self._isolate_home(monkeypatch, tmp_path)
+        from coding_agent.storage.history import HistoryManager
+
+        history_mgr = HistoryManager()
+        session_id = history_mgr.create_session(workspace_path=str(tmp_path), model="codellama:latest")
+        history_mgr.add_message(session_id, role="user", content="explain list[int] please")
+        history_mgr.add_message(session_id, role="assistant", content="list[int] means a list of ints")
+
+        result = runner.invoke(app, ["history", "--view", session_id])
+        assert result.exit_code == 0
+        assert "list[int]" in result.stdout
+
     def test_delete_unknown_session_reports_failure(self, monkeypatch, tmp_path):
         self._isolate_home(monkeypatch, tmp_path)
         result = runner.invoke(app, ["history", "--delete", "does-not-exist"])
