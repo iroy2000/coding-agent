@@ -491,35 +491,49 @@ def serve(
     from coding_agent.mcp.server import MCPServer
     from coding_agent.utils.display import print_error_message
     
+    # The stdio transport uses stdout exclusively as the JSON-RPC protocol
+    # channel for communicating with MCP clients (e.g. Claude Desktop) - any
+    # extra human-readable text written to stdout corrupts every message the
+    # client tries to parse. Route all startup/diagnostic output to stderr
+    # in that mode instead; only the http transport (which doesn't share a
+    # stream with the protocol) prints to stdout.
+    out = Console(stderr=True) if transport == "stdio" else console
+
+    def _error(message: str) -> None:
+        if transport == "stdio":
+            out.print(f"[bold red]Error:[/bold red] {escape(message)}")
+        else:
+            print_error_message(message)
+
     try:
         # Resolve workspace path
         workspace_path = Path(workspace).resolve()
         
         if not workspace_path.exists():
-            print_error_message(f"Workspace path does not exist: {workspace}")
+            _error(f"Workspace path does not exist: {workspace}")
             raise typer.Exit(1)
         
         # Display startup info
-        console.print("\n[bold cyan]═══ MCP Server Starting ═══[/bold cyan]\n")
-        console.print(f"[dim]Workspace:[/dim] {escape(str(workspace_path))}")
-        console.print(f"[dim]Transport:[/dim] {transport}")
-        console.print(f"[dim]Safe Mode:[/dim] {'✅ Enabled' if safe_mode else '❌ Disabled'}")
-        console.print()
+        out.print("\n[bold cyan]═══ MCP Server Starting ═══[/bold cyan]\n")
+        out.print(f"[dim]Workspace:[/dim] {escape(str(workspace_path))}")
+        out.print(f"[dim]Transport:[/dim] {transport}")
+        out.print(f"[dim]Safe Mode:[/dim] {'✅ Enabled' if safe_mode else '❌ Disabled'}")
+        out.print()
         
         # Show enabled tools
-        console.print("[bold]Enabled Tools:[/bold]")
+        out.print("[bold]Enabled Tools:[/bold]")
         if enable_file_tools:
-            console.print("  ✅ File tools: [cyan]read_file, list_files[/cyan]")
+            out.print("  ✅ File tools: [cyan]read_file, list_files[/cyan]")
         if enable_ai_tools:
-            console.print("  ✅ AI tools: [cyan]explain_code[/cyan]")
+            out.print("  ✅ AI tools: [cyan]explain_code[/cyan]")
         if enable_history_tools:
-            console.print("  ✅ History tools: [cyan]search_history[/cyan]")
+            out.print("  ✅ History tools: [cyan]search_history[/cyan]")
         
         if not any([enable_file_tools, enable_ai_tools, enable_history_tools]):
-            print_error_message("No tools enabled! Enable at least one tool category.")
+            _error("No tools enabled! Enable at least one tool category.")
             raise typer.Exit(1)
         
-        console.print()
+        out.print()
         
         # Create server
         if safe_mode:
@@ -534,13 +548,13 @@ def serve(
         
         # Show registered tools
         tools = server.list_tools()
-        console.print(f"[bold green]✓[/bold green] Server initialized with {len(tools)} tool(s)")
+        out.print(f"[bold green]✓[/bold green] Server initialized with {len(tools)} tool(s)")
         for tool in tools:
-            console.print(f"  • {tool['name']}: [dim]{tool['description']}[/dim]")
+            out.print(f"  • {escape(tool['name'])}: [dim]{escape(tool['description'])}[/dim]")
         
-        console.print()
-        console.print("[bold yellow]Server running...[/bold yellow] Press Ctrl+C to stop")
-        console.print()
+        out.print()
+        out.print("[bold yellow]Server running...[/bold yellow] Press Ctrl+C to stop")
+        out.print()
         
         # Start server based on transport
         if transport == "stdio":
@@ -564,22 +578,22 @@ def serve(
                     **kwargs
                 ))
             except KeyboardInterrupt:
-                console.print("\n\n[yellow]Server stopped[/yellow]")
+                out.print("\n\n[yellow]Server stopped[/yellow]")
                 
         elif transport == "http":
-            print_error_message("HTTP transport not yet implemented")
-            console.print("[dim]Currently only stdio transport is supported[/dim]")
+            _error("HTTP transport not yet implemented")
+            out.print("[dim]Currently only stdio transport is supported[/dim]")
             raise typer.Exit(1)
         else:
-            print_error_message(f"Unknown transport: {transport}")
-            console.print("[dim]Supported transports: stdio, http[/dim]")
+            _error(f"Unknown transport: {transport}")
+            out.print("[dim]Supported transports: stdio, http[/dim]")
             raise typer.Exit(1)
             
     except KeyboardInterrupt:
-        console.print("\n\n[yellow]Server stopped by user[/yellow]")
+        out.print("\n\n[yellow]Server stopped by user[/yellow]")
         raise typer.Exit(0)
     except Exception as e:
-        print_error_message(f"Server error: {e}")
+        _error(f"Server error: {e}")
         raise typer.Exit(1)
 
 

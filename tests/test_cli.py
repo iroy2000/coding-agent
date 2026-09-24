@@ -230,7 +230,9 @@ class TestServeCommand:
         missing = tmp_path / "does-not-exist"
         result = runner.invoke(app, ["serve", "--workspace", str(missing)])
         assert result.exit_code == 1
-        assert "does not exist" in result.stdout.lower()
+        # stdio transport (the default) reserves stdout exclusively for the
+        # JSON-RPC protocol channel, so diagnostic output goes to stderr.
+        assert "does not exist" in result.stderr.lower()
 
     def test_starts_stdio_server_and_lists_tools(self, tmp_path: Path):
         mock_server = self._mock_server()
@@ -243,8 +245,10 @@ class TestServeCommand:
             result = runner.invoke(app, ["serve", "--workspace", str(tmp_path)])
 
         assert result.exit_code == 0
-        assert "read_file" in result.stdout
-        assert "Server initialized with 2 tool(s)" in result.stdout
+        # Must not pollute stdout - that's reserved for JSON-RPC messages.
+        assert result.stdout == ""
+        assert "read_file" in result.stderr
+        assert "Server initialized with 2 tool(s)" in result.stderr
         mock_run.assert_awaited_once()
 
     def test_no_safe_mode_uses_direct_constructor(self, tmp_path: Path):
@@ -277,7 +281,7 @@ class TestServeCommand:
             ],
         )
         assert result.exit_code == 1
-        assert "no tools enabled" in result.stdout.lower()
+        assert "no tools enabled" in result.stderr.lower()
 
     def test_http_transport_not_implemented(self, tmp_path: Path):
         mock_server = self._mock_server()
@@ -296,6 +300,30 @@ class TestServeCommand:
             )
         assert result.exit_code == 1
         assert "unknown transport" in result.stdout.lower()
+
+    def test_stdio_transport_never_writes_to_stdout(self, tmp_path: Path):
+        """Regression: the stdio transport uses stdout exclusively as the
+        JSON-RPC protocol channel to talk to MCP clients (e.g. Claude
+        Desktop). Any startup banner/diagnostic text previously written
+        directly to stdout corrupted every message a real client tried to
+        parse (confirmed via a live subprocess round-trip through
+        MCPClient, which failed with "Failed to parse JSONRPC message"
+        before this fix). stdout must stay completely empty regardless of
+        success or failure; all such output belongs on stderr.
+        """
+        mock_server = self._mock_server()
+        with (
+            patch("coding_agent.mcp.server.MCPServer.with_safe_mode", return_value=mock_server),
+            patch(
+                "coding_agent.mcp.stdio_server.run_stdio_server", new_callable=AsyncMock
+            ),
+        ):
+            ok_result = runner.invoke(app, ["serve", "--workspace", str(tmp_path)])
+        assert ok_result.stdout == ""
+
+        missing = tmp_path / "does-not-exist"
+        err_result = runner.invoke(app, ["serve", "--workspace", str(missing)])
+        assert err_result.stdout == ""
 
 
 class TestConfigCommand:
