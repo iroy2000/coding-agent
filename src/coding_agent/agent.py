@@ -11,6 +11,7 @@ from rich.syntax import Syntax
 from coding_agent.llm.base import LLMProvider
 from coding_agent.llm.ollama_client import OllamaClient
 from coding_agent.llm.prompts import get_system_prompt
+from coding_agent.llm.tool_schemas import TOOL_DEFINITIONS, operation_name_for_tool
 from coding_agent.storage.history import HistoryManager
 from coding_agent.tools.file_manager import FileManager
 from coding_agent.tools.git_manager import GitManager
@@ -463,21 +464,36 @@ class CodingAgent:
         context = self._build_context()
 
         try:
-            # Get LLM response
-            if stream:
-                # Stream the response
-                response_generator = self.llm_client.stream_generate(user_message, context[:-1])
-                response = stream_agent_response(response_generator)
+            operations: List[Tuple[str, Dict[str, str]]]
+
+            if self.llm_client.supports_tools:
+                # Structured tool-calling path: ask the model to call tools
+                # directly instead of emitting the text-format command syntax,
+                # so we never depend on regex-parsing free text (issue #8).
+                tool_result = self.llm_client.generate_with_tools(
+                    user_message, context[:-1], TOOL_DEFINITIONS
+                )
+                response = tool_result.text
+                if response:
+                    print_agent_message(response)
+                operations = [
+                    (operation_name_for_tool(call.name), call.arguments)
+                    for call in tool_result.tool_calls
+                ]
             else:
-                # Non-streaming response
-                response = self.llm_client.generate(user_message, context[:-1])
-                print_agent_message(response)
+                # Text-format fallback: prompt the model to emit the
+                # documented command syntax and parse it out with regex.
+                if stream:
+                    response_generator = self.llm_client.stream_generate(user_message, context[:-1])
+                    response = stream_agent_response(response_generator)
+                else:
+                    response = self.llm_client.generate(user_message, context[:-1])
+                    print_agent_message(response)
+
+                operations = self._parse_file_operations(response)
 
             # Add agent response to history
             self._add_to_history("assistant", response)
-
-            # Check for file operations in the response
-            operations = self._parse_file_operations(response)
 
             if operations:
                 console.print(f"\n[yellow]Detected {len(operations)} file operation(s)[/yellow]")
@@ -535,7 +551,13 @@ class CodingAgent:
                     
                     context = self._build_context()
                     
-                    if stream:
+                    if self.llm_client.supports_tools:
+                        follow_up_result = self.llm_client.generate_with_tools(
+                            follow_up_prompt, context[:-1]
+                        )
+                        follow_up_response = follow_up_result.text
+                        print_agent_message(follow_up_response)
+                    elif stream:
                         follow_up_generator = self.llm_client.stream_generate(follow_up_prompt, context[:-1])
                         follow_up_response = stream_agent_response(follow_up_generator)
                     else:

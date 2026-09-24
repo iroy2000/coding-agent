@@ -197,6 +197,10 @@ coding-agent config --set LLM_PROVIDER=openai
 coding-agent config --set OPENAI_API_KEY=sk-...
 ```
 
+The `openai` and `anthropic` providers use native tool/function-calling to
+invoke file and command operations directly, instead of the text-format
+commands parsed from `ollama` responses.
+
 ---
 
 ## History

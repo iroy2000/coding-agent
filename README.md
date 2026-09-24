@@ -150,6 +150,11 @@ coding-agent config --set OPENAI_API_KEY=sk-...
 coding-agent config --set OPENAI_MODEL=gpt-4o
 ```
 
+When using `openai` or `anthropic`, the agent uses each provider's native
+function/tool-calling API to invoke file and command operations directly
+(no regex-parsed text commands). The default `ollama` provider continues to
+use the original text-format command parsing.
+
 ## Things you can ask it
 
 ```
@@ -194,9 +199,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup.
 
 Active work is tracked in [GitHub Issues](https://github.com/iroy2000/coding-agent/issues), not duplicated here. A few things currently open:
 
-- Structured tool-calling instead of regex-parsed actions ([#8](https://github.com/iroy2000/coding-agent/issues/8))
-- Support for LLM providers beyond Ollama ([#9](https://github.com/iroy2000/coding-agent/issues/9))
-- Repository-wide search/indexing ([#10](https://github.com/iroy2000/coding-agent/issues/10))
+- Ollama-native tool-calling support, extending the structured tool-calling added for OpenAI/Anthropic ([#8](https://github.com/iroy2000/coding-agent/issues/8))
 - First PyPI release ([#12](https://github.com/iroy2000/coding-agent/issues/12))
 
 What's already working: chat, file read/write/edit with diff confirmation, shell command execution with a safety denylist, git auto-commit/undo, history with export, and CI running the full test suite (200+ tests) on every push.

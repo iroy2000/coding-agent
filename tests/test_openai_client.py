@@ -139,6 +139,65 @@ class TestOpenAIProvider:
 
         assert "".join(chunks) == "Hello world!"
 
+    @patch("openai.OpenAI")
+    def test_generate_with_tools_returns_tool_calls(self, mock_openai_class):
+        """Test that a tool-call response is parsed into ToolCall objects."""
+        mock_client = Mock()
+        tool_call = Mock()
+        tool_call.id = "call_1"
+        tool_call.function.name = "read_file"
+        tool_call.function.arguments = '{"path": "README.md"}'
+        mock_message = Mock(content=None, tool_calls=[tool_call])
+        mock_client.chat.completions.create.return_value = Mock(
+            choices=[Mock(message=mock_message)]
+        )
+        mock_openai_class.return_value = mock_client
+
+        client = OpenAIProvider(api_key="test-key")
+        result = client.generate_with_tools(
+            "Read README.md", tools=[{"name": "read_file", "parameters": {}}]
+        )
+
+        assert result.text == ""
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].name == "read_file"
+        assert result.tool_calls[0].arguments == {"path": "README.md"}
+        assert result.tool_calls[0].id == "call_1"
+
+    @patch("openai.OpenAI")
+    def test_generate_with_tools_returns_plain_text_when_no_tool_call(self, mock_openai_class):
+        """Test a normal conversational reply with no tool calls."""
+        mock_client = Mock()
+        mock_message = Mock(content="Sure, how can I help?", tool_calls=None)
+        mock_client.chat.completions.create.return_value = Mock(
+            choices=[Mock(message=mock_message)]
+        )
+        mock_openai_class.return_value = mock_client
+
+        client = OpenAIProvider(api_key="test-key")
+        result = client.generate_with_tools("Hello")
+
+        assert result.text == "Sure, how can I help?"
+        assert result.tool_calls == []
+
+    @patch("openai.OpenAI")
+    def test_generate_with_tools_error_handling(self, mock_openai_class):
+        """Test error handling during tool-calling generation."""
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("API error")
+        mock_openai_class.return_value = mock_client
+
+        client = OpenAIProvider(api_key="test-key")
+        result = client.generate_with_tools("Test prompt")
+
+        assert result.text == ""
+        assert result.tool_calls == []
+
+    def test_supports_tools_is_true(self):
+        """OpenAIProvider must declare tool-calling support for the agent's
+        structured tool-calling path (issue #8)."""
+        assert OpenAIProvider.supports_tools is True
+
 
 class TestOpenAIConnectionHelper:
     """Test suite for check_openai_connection()."""

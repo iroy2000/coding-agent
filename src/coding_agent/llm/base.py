@@ -7,7 +7,31 @@ needs to change.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generator, List, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, Generator, List, Optional
+
+
+@dataclass
+class ToolCall:
+    """A single structured tool/function call requested by the model."""
+
+    name: str
+    arguments: Dict[str, Any]
+    id: Optional[str] = None
+
+
+@dataclass
+class ToolCallResult:
+    """
+    Result of a tool-calling-capable generation.
+
+    Exactly one of `text`/`tool_calls` is typically meaningful: a normal
+    conversational reply sets `text` and leaves `tool_calls` empty; a
+    request to invoke actions sets `tool_calls` (with `text` usually empty).
+    """
+
+    text: str = ""
+    tool_calls: List[ToolCall] = field(default_factory=list)
 
 
 class LLMProvider(ABC):
@@ -16,6 +40,12 @@ class LLMProvider(ABC):
     #: Human-readable provider name (e.g. "ollama", "openai", "anthropic"),
     #: used in error/status messages.
     provider_name: str = "unknown"
+
+    #: Whether this provider supports native structured tool/function calling
+    #: (see `generate_with_tools`). Providers that don't (or can't guarantee
+    #: it for the configured model) leave this False, and `CodingAgent` falls
+    #: back to text-format regex parsing of the prompted command syntax.
+    supports_tools: bool = False
 
     @abstractmethod
     def check_connection(self) -> bool:
@@ -92,3 +122,32 @@ class LLMProvider(ABC):
             Response text chunks
         """
         raise NotImplementedError
+
+    def generate_with_tools(
+        self,
+        prompt: str,
+        context: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ToolCallResult:
+        """
+        Generate a response, allowing the model to request structured tool
+        calls instead of (or alongside) plain text, when supported.
+
+        Providers with `supports_tools = True` must override this to use
+        their native function/tool-calling API (see
+        `coding_agent.llm.tool_schemas.TOOL_DEFINITIONS` for the shared
+        schema). The default implementation here is a plain-text fallback
+        used by providers that don't support tool-calling: it just calls
+        `generate()` and returns the text with no tool calls, so
+        `CodingAgent` can fall back to text-format regex parsing.
+
+        Args:
+            prompt: User prompt
+            context: Optional prior conversation messages
+            tools: JSON-schema tool definitions the model may call
+
+        Returns:
+            A `ToolCallResult` with either plain text or structured tool calls
+        """
+        return ToolCallResult(text=self.generate(prompt, context))
+

@@ -5,11 +5,12 @@ using the official `openai` Python SDK, so the agent/CLI can use OpenAI's
 hosted models exactly like Ollama.
 """
 
-from typing import Generator, List, Optional
+import json
+from typing import Any, Dict, Generator, List, Optional
 
 from rich.console import Console
 
-from coding_agent.llm.base import LLMProvider
+from coding_agent.llm.base import LLMProvider, ToolCall, ToolCallResult
 
 console = Console()
 
@@ -23,6 +24,7 @@ class OpenAIProvider(LLMProvider):
     """Client for interacting with OpenAI's chat completions API."""
 
     provider_name = "openai"
+    supports_tools = True
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini") -> None:
         """
@@ -126,6 +128,54 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             console.print(f"[red]Streaming failed: {str(e)}[/red]")
             yield ""
+
+    def generate_with_tools(
+        self,
+        prompt: str,
+        context: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ToolCallResult:
+        """
+        Generate a response using OpenAI's native function-calling API.
+
+        Args:
+            prompt: User prompt
+            context: Optional conversation context
+            tools: JSON-schema tool definitions (see
+                `coding_agent.llm.tool_schemas.TOOL_DEFINITIONS`)
+
+        Returns:
+            A `ToolCallResult` with either plain text or structured tool calls
+        """
+        try:
+            messages = list(context or [])
+            messages.append({"role": "user", "content": prompt})
+
+            openai_tools = [
+                {"type": "function", "function": tool} for tool in (tools or [])
+            ]
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=openai_tools or None,
+            )
+            message = response.choices[0].message
+
+            tool_calls = []
+            for call in message.tool_calls or []:
+                try:
+                    arguments = json.loads(call.function.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    arguments = {}
+                tool_calls.append(
+                    ToolCall(name=call.function.name, arguments=arguments, id=call.id)
+                )
+
+            return ToolCallResult(text=message.content or "", tool_calls=tool_calls)
+        except Exception as e:
+            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            return ToolCallResult(text="")
 
 
 def test_openai_connection(api_key: Optional[str], model: str) -> tuple[bool, str]:

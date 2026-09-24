@@ -9,11 +9,11 @@ Anthropic's Messages API takes the system prompt as a separate top-level
 provider splits it out of the shared context format before calling the API.
 """
 
-from typing import Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from rich.console import Console
 
-from coding_agent.llm.base import LLMProvider
+from coding_agent.llm.base import LLMProvider, ToolCall, ToolCallResult
 
 console = Console()
 
@@ -62,6 +62,7 @@ class AnthropicProvider(LLMProvider):
     """Client for interacting with Anthropic's Messages API."""
 
     provider_name = "anthropic"
+    supports_tools = True
 
     def __init__(
         self,
@@ -185,6 +186,65 @@ class AnthropicProvider(LLMProvider):
             console.print(f"[red]Streaming failed: {str(e)}[/red]")
             yield ""
 
+    def generate_with_tools(
+        self,
+        prompt: str,
+        context: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> ToolCallResult:
+        """
+        Generate a response using Anthropic's native tool-use API.
+
+        Args:
+            prompt: User prompt
+            context: Optional conversation context
+            tools: JSON-schema tool definitions (see
+                `coding_agent.llm.tool_schemas.TOOL_DEFINITIONS`). Anthropic
+                expects each tool's schema under an `input_schema` key
+                rather than `parameters`, so it's translated here.
+
+        Returns:
+            A `ToolCallResult` with either plain text or structured tool calls
+        """
+        try:
+            system_prompt, messages = _split_system_and_messages(context, prompt)
+
+            anthropic_tools = [
+                {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "input_schema": tool["parameters"],
+                }
+                for tool in (tools or [])
+            ]
+
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                messages=messages,
+                system=system_prompt or self._not_given,
+                tools=anthropic_tools or self._not_given,
+            )
+
+            text_parts = []
+            tool_calls = []
+            for block in response.content:
+                block_type = getattr(block, "type", None)
+                if block_type == "text":
+                    text_parts.append(getattr(block, "text", ""))
+                elif block_type == "tool_use":
+                    tool_calls.append(
+                        ToolCall(
+                            name=getattr(block, "name", ""),
+                            arguments=getattr(block, "input", {}) or {},
+                            id=getattr(block, "id", None),
+                        )
+                    )
+
+            return ToolCallResult(text="".join(text_parts), tool_calls=tool_calls)
+        except Exception as e:
+            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            return ToolCallResult(text="")
 
 
 def test_anthropic_connection(api_key: Optional[str], model: str) -> tuple[bool, str]:
