@@ -1,6 +1,7 @@
 """MCP Client implementation - connects to external MCP servers."""
 
 import asyncio
+import contextlib
 import json
 from typing import Any, Dict, List, Optional
 
@@ -31,6 +32,9 @@ class MCPClient:
         self.config = config
         self.session: Optional[ClientSession] = None
         self.available_tools: List[Dict[str, Any]] = []
+        # Holds the stdio_client/ClientSession async context managers open
+        # for the lifetime of the connection (see connect()/disconnect()).
+        self._exit_stack: Optional[contextlib.AsyncExitStack] = None
 
     async def connect(self) -> bool:
         """
@@ -39,6 +43,7 @@ class MCPClient:
         Returns:
             True if connection successful, False otherwise
         """
+        exit_stack = contextlib.AsyncExitStack()
         try:
             server_params = StdioServerParameters(
                 command=self.config["command"],
@@ -46,25 +51,31 @@ class MCPClient:
                 env=self.config.get("env", {}),
             )
 
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    self.session = session
-                    await session.initialize()
-                    
-                    # List available tools
-                    tools_response = await session.list_tools()
-                    self.available_tools = [
-                        {
-                            "name": tool.name,
-                            "description": tool.description,
-                            "input_schema": tool.inputSchema,
-                        }
-                        for tool in tools_response.tools
-                    ]
-                    
-                    return True
+            # Using enter_async_context (rather than nested `async with`
+            # blocks that exit when this method returns) keeps the stdio
+            # transport and session open for the lifetime of the
+            # connection, so call_tool() can still use it afterward.
+            read, write = await exit_stack.enter_async_context(stdio_client(server_params))
+            session = await exit_stack.enter_async_context(ClientSession(read, write))
+            await session.initialize()
+
+            # List available tools
+            tools_response = await session.list_tools()
+            self.available_tools = [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "input_schema": tool.inputSchema,
+                }
+                for tool in tools_response.tools
+            ]
+
+            self.session = session
+            self._exit_stack = exit_stack
+            return True
         except Exception as e:
             print(f"Failed to connect to {self.server_name}: {str(e)}")
+            await exit_stack.aclose()
             return False
 
     async def list_tools(self) -> List[Dict[str, Any]]:
@@ -95,9 +106,10 @@ class MCPClient:
 
     async def disconnect(self) -> None:
         """Disconnect from the server."""
-        if self.session:
-            # Cleanup would go here
-            self.session = None
+        if self._exit_stack:
+            await self._exit_stack.aclose()
+            self._exit_stack = None
+        self.session = None
 
 
 class MCPClientManager:

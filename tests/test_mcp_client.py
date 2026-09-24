@@ -19,7 +19,13 @@ class _FakeSession:
     def __init__(self, tools):
         self._tools = tools
         self.initialize = AsyncMock()
-        self.call_tool = AsyncMock(return_value={"content": "ok"})
+        self.closed = False
+        self.call_tool = AsyncMock(side_effect=self._call_tool)
+
+    async def _call_tool(self, *args, **kwargs):
+        if self.closed:
+            raise RuntimeError("session is closed")
+        return {"content": "ok"}
 
     async def list_tools(self):
         response = MagicMock()
@@ -30,6 +36,7 @@ class _FakeSession:
         return self
 
     async def __aexit__(self, *exc):
+        self.closed = True
         return False
 
 
@@ -69,6 +76,35 @@ class TestMCPClientConnect:
             result = await client.connect()
 
         assert result is False
+        assert client.session is None
+
+    @pytest.mark.asyncio
+    async def test_session_stays_open_for_call_tool_after_connect(self):
+        """Regression: connect() used to open stdio_client/ClientSession via
+        nested `async with` blocks and return from inside them, which tears
+        the connection down the instant connect() returns - any later
+        call_tool() would hit a closed session. The session must remain
+        usable until disconnect() is explicitly called.
+        """
+        client = MCPClient("filesystem", {"command": "npx", "args": ["-y", "server"]})
+        fake_session = _FakeSession([_make_tool("read_file")])
+
+        with (
+            patch("coding_agent.mcp.client.stdio_client", return_value=_FakeStdioClient()),
+            patch("coding_agent.mcp.client.ClientSession", return_value=fake_session),
+        ):
+            result = await client.connect()
+            assert result is True
+            assert fake_session.closed is False
+
+            # This must succeed - the session must not have been torn down
+            # just because connect() returned.
+            call_result = await client.call_tool("read_file", {"path": "a.py"})
+            assert call_result == {"content": "ok"}
+
+            await client.disconnect()
+
+        assert fake_session.closed is True
         assert client.session is None
 
 
