@@ -203,9 +203,25 @@ class MCPStdioServer:
         if start_line is not None or end_line is not None:
             lines = content.splitlines()
             total_lines = len(lines)
-            
-            start_idx = (start_line - 1) if start_line else 0
-            end_idx = end_line if end_line else total_lines
+
+            # Reject non-positive values explicitly rather than relying on
+            # truthiness: `start_line or end_line == 0` is falsy in Python,
+            # so `x if x else default` would silently treat 0 as "unset"
+            # instead of the invalid value it actually is (the tool schema
+            # declares minimum: 1 for both).
+            if start_line is not None and start_line < 1:
+                return [TextContent(
+                    type="text",
+                    text=f"Error: start_line must be >= 1, got {start_line}"
+                )]
+            if end_line is not None and end_line < 1:
+                return [TextContent(
+                    type="text",
+                    text=f"Error: end_line must be >= 1, got {end_line}"
+                )]
+
+            start_idx = (start_line - 1) if start_line is not None else 0
+            end_idx = end_line if end_line is not None else total_lines
             
             # Validate ranges
             if start_idx < 0 or start_idx >= total_lines:

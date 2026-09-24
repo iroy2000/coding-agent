@@ -12,6 +12,13 @@ from rich.console import Console
 
 console = Console()
 
+# VCS metadata directories are never meaningful "project files" and can
+# contain full historical blobs (including secrets removed in later
+# commits). They must be skipped even when `include_hidden=True` is
+# requested, since that flag is meant to reveal dotfiles like `.env`, not
+# an entire version-control object database.
+_VCS_METADATA_DIRS = {".git", ".hg", ".svn"}
+
 # Patterns that are always blocked, regardless of confirmation, because they
 # are almost never intentional in a coding-assistant workflow and can cause
 # irreversible damage to the machine (not just the workspace).
@@ -291,6 +298,12 @@ class FileManager:
 
                 try:
                     for item in sorted(current_path.iterdir()):
+                        # Always skip VCS metadata directories (e.g. .git),
+                        # even when include_hidden is set - these are not
+                        # project files and can expose historical secrets.
+                        if item.is_dir() and item.name in _VCS_METADATA_DIRS:
+                            continue
+
                         # Skip hidden files if not included
                         if not include_hidden and item.name.startswith("."):
                             continue

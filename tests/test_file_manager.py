@@ -154,6 +154,25 @@ class TestFileManager:
         assert ".env" not in files
         assert "__pycache__/cache.pyc" not in files
 
+    def test_list_files_include_hidden_skips_git_metadata(self, sample_workspace):
+        """include_hidden=True should reveal dotfiles like .env but must not
+        descend into .git and dump its internal object database - .git isn't
+        a project file and can expose historical secrets even after later
+        removal."""
+        fm = FileManager(workspace_path=str(sample_workspace))
+
+        (sample_workspace / ".hidden.txt").write_text("hidden")
+        git_dir = sample_workspace / ".git" / "objects"
+        git_dir.mkdir(parents=True)
+        (git_dir / "deadbeef").write_text("binary blob content")
+        (sample_workspace / ".git" / "config").write_text("[core]")
+
+        success, files = fm.list_files(include_hidden=True)
+
+        assert success is True
+        assert ".hidden.txt" in files
+        assert not any(f.startswith(".git/") or f == ".git" for f in files)
+
     def test_list_files_max_depth(self, sample_workspace):
         """Test limiting the depth of file listing."""
         fm = FileManager(workspace_path=str(sample_workspace))
