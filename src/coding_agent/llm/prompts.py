@@ -29,6 +29,12 @@ LIST_FILES: path/to/directory
   - Example: LIST_FILES: .
   - Example: LIST_FILES: src/
 
+SEARCH_FILES: pattern
+  - Use this to search for a text/regex pattern across files in the workspace
+    (e.g. to find where something is defined or used)
+  - Example: SEARCH_FILES: def calculate_total
+  - Example: SEARCH_FILES: TODO
+
 RUN_COMMAND: shell command to execute
   - Use this to run tests, linters, builds, or other shell commands in the workspace
   - Example: RUN_COMMAND: pytest -q
@@ -70,6 +76,12 @@ ALWAYS use READ_FILE when user asks:
   - "what does ... do..."
   - "analyze..."
   - ANY question about file contents or code explanation
+
+ALWAYS use SEARCH_FILES when user asks:
+  - "where is X implemented/defined..."
+  - "find all callers/usages of X..."
+  - "search for..."
+  - ANY question about locating code by name/text without a known file path
 
 NEVER make up or guess file names - ALWAYS use LIST_FILES first!
 NEVER explain code from memory - ALWAYS read it with READ_FILE first!

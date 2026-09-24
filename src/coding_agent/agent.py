@@ -241,6 +241,7 @@ class CodingAgent:
           ```
         - LIST_FILES: path/to/directory
         - RUN_COMMAND: shell command to execute
+        - SEARCH_FILES: pattern to search for
 
         Args:
             response: Agent's response text
@@ -264,6 +265,11 @@ class CodingAgent:
         run_command_pattern = r"RUN_COMMAND:\s*([^\n]+)"
         for match in re.finditer(run_command_pattern, response, re.IGNORECASE):
             operations.append(("RUN_COMMAND", {"command": match.group(1).strip()}))
+
+        # Pattern for SEARCH_FILES
+        search_pattern = r"SEARCH_FILES:\s*([^\n]+)"
+        for match in re.finditer(search_pattern, response, re.IGNORECASE):
+            operations.append(("SEARCH_FILES", {"pattern": match.group(1).strip()}))
 
         # Pattern for WRITE_FILE with content
         write_pattern = r"WRITE_FILE:\s*([^\n]+)[\s\n]+CONTENT:\s*```(?:\w+)?\s*(.*?)```"
@@ -289,7 +295,7 @@ class CodingAgent:
         Execute a file operation.
 
         Args:
-            operation: Operation type (READ_FILE, WRITE_FILE, EDIT_FILE, LIST_FILES, RUN_COMMAND)
+            operation: Operation type (READ_FILE, WRITE_FILE, EDIT_FILE, LIST_FILES, SEARCH_FILES, RUN_COMMAND)
             params: Operation parameters
 
         Returns:
@@ -385,6 +391,27 @@ class CodingAgent:
                     print_file_operation("Listing", path, "error")
                     return False, files
 
+            elif operation == "SEARCH_FILES":
+                pattern = params["pattern"]
+                print_file_operation("Searching", pattern, "in_progress")
+
+                success, matches = self.file_manager.search_files(pattern)
+
+                if success:
+                    print_file_operation("Searching", pattern, "success")
+                    if matches:
+                        matches_list = "\n".join(f"  - {m}" for m in matches[:50])
+                        if len(matches) > 50:
+                            matches_list += f"\n  ... and {len(matches) - 50} more matches"
+                        result = f"Search results for '{pattern}':\n{matches_list}"
+                    else:
+                        result = f"No matches found for '{pattern}'"
+                    self._add_to_history("system", result)
+                    return True, result
+                else:
+                    print_file_operation("Searching", pattern, "error")
+                    return False, matches
+
             elif operation == "RUN_COMMAND":
                 command = params["command"]
 
@@ -470,6 +497,10 @@ class CodingAgent:
                         operation_results.append(f"File: {params['path']}\nContent:\n{result}")
                     elif operation == "LIST_FILES" and success:
                         print_system_message(result)
+                        operation_results.append(result)
+                    elif operation == "SEARCH_FILES" and success:
+                        print_system_message(result)
+                        has_read_operation = True
                         operation_results.append(result)
                     elif operation == "RUN_COMMAND" and success:
                         print_system_message(result)

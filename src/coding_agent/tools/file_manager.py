@@ -2,6 +2,7 @@
 
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -313,6 +314,144 @@ class FileManager:
 
         except Exception as e:
             return False, f"Error listing directory: {str(e)}"
+
+    def search_files(
+        self,
+        pattern: str,
+        directory: str = ".",
+        max_results: int = 100,
+    ) -> Tuple[bool, Union[List[str], str]]:
+        """
+        Search for a text/regex pattern across files in the workspace.
+
+        Uses `ripgrep` (`rg`) when available for speed, falling back to a
+        pure-Python line-by-line scan when `rg` is not installed. Both paths
+        filter results through the same `_is_ignored` `.gitignore` handling
+        used by `list_files` (rg's own built-in `.gitignore` detection only
+        applies inside real git repositories, so it's disabled here to keep
+        behavior consistent regardless of whether the workspace is a git
+        repo).
+
+        Args:
+            pattern: Text or regex pattern to search for
+            directory: Directory to search within (relative to workspace)
+            max_results: Maximum number of matching lines to return
+
+        Returns:
+            Tuple of (success, list of "path:line: content" match strings or
+            an error message)
+        """
+        if not pattern or not pattern.strip():
+            return False, "Search pattern cannot be empty"
+
+        path = Path(directory)
+        if not path.is_absolute():
+            path = self.workspace / path
+        path = path.resolve()
+
+        if not self._is_safe_path(path):
+            return False, f"Error: Path '{directory}' is outside workspace"
+
+        if not path.exists():
+            return False, f"Error: Directory '{directory}' does not exist"
+
+        if not path.is_dir():
+            return False, f"Error: '{directory}' is not a directory"
+
+        if shutil.which("rg"):
+            return self._search_files_ripgrep(pattern, path, max_results)
+        return self._search_files_python(pattern, path, max_results)
+
+    def _search_files_ripgrep(
+        self, pattern: str, path: Path, max_results: int
+    ) -> Tuple[bool, Union[List[str], str]]:
+        """Search using the `rg` (ripgrep) binary. See `search_files`."""
+        try:
+            result = subprocess.run(
+                [
+                    "rg",
+                    "--line-number",
+                    "--no-heading",
+                    "--color=never",
+                    "--no-ignore",
+                    "--max-count",
+                    str(max_results),
+                    "--",
+                    pattern,
+                    str(path),
+                ],
+                cwd=self.workspace,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            return False, f"Search timed out: {pattern}"
+        except Exception as e:
+            return False, f"Error running ripgrep: {str(e)}"
+
+        # rg exit codes: 0 = matches found, 1 = no matches, 2 = error
+        if result.returncode == 2:
+            return False, f"Error searching for pattern: {result.stderr.strip()}"
+
+        matches = []
+        for line in result.stdout.splitlines():
+            try:
+                abs_part, rest = line.split(":", 1)
+                abs_path = Path(abs_part).resolve()
+                rel_path = abs_path.relative_to(self.workspace)
+            except (ValueError, OSError):
+                continue
+            if self._is_ignored(abs_path):
+                continue
+            matches.append(f"{rel_path}:{rest}")
+            if len(matches) >= max_results:
+                break
+
+        return True, matches
+
+    def _search_files_python(
+        self, pattern: str, path: Path, max_results: int
+    ) -> Tuple[bool, Union[List[str], str]]:
+        """Pure-Python fallback search when ripgrep isn't installed."""
+        try:
+            compiled = re.compile(pattern)
+        except re.error as e:
+            return False, f"Invalid search pattern: {str(e)}"
+
+        matches: List[str] = []
+
+        def walk_directory(current_path: Path):
+            if len(matches) >= max_results:
+                return
+            try:
+                for item in sorted(current_path.iterdir()):
+                    if len(matches) >= max_results:
+                        return
+                    if item.name.startswith("."):
+                        continue
+                    if self._is_ignored(item):
+                        continue
+                    if item.is_dir():
+                        walk_directory(item)
+                    elif item.is_file():
+                        try:
+                            with open(item, "r", encoding="utf-8") as f:
+                                for line_num, line in enumerate(f, start=1):
+                                    if compiled.search(line):
+                                        rel_path = item.relative_to(self.workspace)
+                                        matches.append(
+                                            f"{rel_path}:{line_num}:{line.rstrip(chr(10))}"
+                                        )
+                                        if len(matches) >= max_results:
+                                            return
+                        except (UnicodeDecodeError, PermissionError):
+                            continue
+            except PermissionError:
+                console.print(f"[yellow]Warning: Permission denied for {current_path}[/yellow]")
+
+        walk_directory(path)
+        return True, matches
 
     def get_file_info(self, file_path: str) -> Tuple[bool, Union[Dict, str]]:
         """
