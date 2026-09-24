@@ -221,10 +221,17 @@ class CodingAgent:
             List of messages for LLM
         """
         context = [{"role": "system", "content": self.system_prompt}]
-        
-        # Add conversation history (excluding system messages as we already added one)
-        context.extend([msg for msg in self.conversation_history if msg["role"] != "system"])
-        
+
+        # Add the rest of the conversation history as-is. Note: `system`-role
+        # entries here are never the persistent system prompt above (that's
+        # never stored in `conversation_history`) - they're operation
+        # results (file content, command output, search/list results) and
+        # follow-up instructions added via `_add_to_history("system", ...)`.
+        # These must reach the model, so they are NOT filtered out; doing so
+        # previously meant the model never actually saw the content it was
+        # asked to explain (e.g. READ_FILE output) in the follow-up turn.
+        context.extend(self.conversation_history)
+
         return context
 
     def _parse_file_operations(self, response: str) -> List[Tuple[str, Dict[str, str]]]:
