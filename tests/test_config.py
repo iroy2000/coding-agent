@@ -22,6 +22,11 @@ def clean_env(monkeypatch):
     for key in [
         "OLLAMA_HOST",
         "OLLAMA_MODEL",
+        "LLM_PROVIDER",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_MODEL",
         "WORKSPACE_PATH",
         "MAX_HISTORY_LENGTH",
         "HISTORY_ENABLED",
@@ -47,6 +52,11 @@ class TestConfigDefaults:
         assert cfg.syntax_theme == "monokai"
         assert cfg.user_data_dir == Path.home() / ".coding-agent"
         assert cfg.history_dir == cfg.user_data_dir / "history"
+        assert cfg.llm_provider == "ollama"
+        assert cfg.openai_api_key is None
+        assert cfg.openai_model == "gpt-4o-mini"
+        assert cfg.anthropic_api_key is None
+        assert cfg.anthropic_model == "claude-3-5-sonnet-latest"
 
     def test_env_vars_override_defaults(self, clean_env, temp_dir):
         clean_env.setenv("OLLAMA_HOST", "http://example.com:1234")
@@ -132,6 +142,47 @@ class TestConfigValidate:
         assert len(errors) == 2
 
 
+class TestConfigLLMProviderValidation:
+    def test_validate_rejects_unknown_provider(self, clean_env):
+        clean_env.setenv("LLM_PROVIDER", "not-a-real-provider")
+        cfg = Config()
+        is_valid, errors = cfg.validate()
+        assert is_valid is False
+        assert any("LLM_PROVIDER" in e for e in errors)
+
+    def test_validate_requires_openai_api_key(self, clean_env, temp_dir):
+        clean_env.setenv("WORKSPACE_PATH", str(temp_dir))
+        clean_env.setenv("LLM_PROVIDER", "openai")
+        cfg = Config()
+        is_valid, errors = cfg.validate()
+        assert is_valid is False
+        assert any("OPENAI_API_KEY" in e for e in errors)
+
+    def test_validate_passes_with_openai_api_key_set(self, clean_env, temp_dir):
+        clean_env.setenv("WORKSPACE_PATH", str(temp_dir))
+        clean_env.setenv("LLM_PROVIDER", "openai")
+        clean_env.setenv("OPENAI_API_KEY", "sk-test")
+        cfg = Config()
+        is_valid, errors = cfg.validate()
+        assert is_valid is True
+
+    def test_validate_requires_anthropic_api_key(self, clean_env, temp_dir):
+        clean_env.setenv("WORKSPACE_PATH", str(temp_dir))
+        clean_env.setenv("LLM_PROVIDER", "anthropic")
+        cfg = Config()
+        is_valid, errors = cfg.validate()
+        assert is_valid is False
+        assert any("ANTHROPIC_API_KEY" in e for e in errors)
+
+    def test_validate_passes_with_anthropic_api_key_set(self, clean_env, temp_dir):
+        clean_env.setenv("WORKSPACE_PATH", str(temp_dir))
+        clean_env.setenv("LLM_PROVIDER", "anthropic")
+        clean_env.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        cfg = Config()
+        is_valid, errors = cfg.validate()
+        assert is_valid is True
+
+
 class TestConfigUpdate:
     def test_update_rejects_invalid_key(self, clean_env, capsys):
         cfg = Config()
@@ -143,6 +194,20 @@ class TestConfigUpdate:
         result = cfg.update("OLLAMA_MODEL", "qwen2.5-coder")
         assert result is True
         assert config_module.os.environ["OLLAMA_MODEL"] == "qwen2.5-coder"
+
+    def test_update_sets_llm_provider_and_api_keys(self, clean_env, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        try:
+            assert cfg.update("LLM_PROVIDER", "anthropic") is True
+            assert cfg.update("ANTHROPIC_API_KEY", "sk-ant-test") is True
+            assert config_module.os.environ["LLM_PROVIDER"] == "anthropic"
+            assert config_module.os.environ["ANTHROPIC_API_KEY"] == "sk-ant-test"
+        finally:
+            # cfg.update() mutates os.environ directly (bypassing monkeypatch's
+            # tracking), so clean up explicitly to avoid leaking into other tests.
+            config_module.os.environ.pop("LLM_PROVIDER", None)
+            config_module.os.environ.pop("ANTHROPIC_API_KEY", None)
 
     def test_update_creates_env_file_if_missing(self, clean_env, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

@@ -28,6 +28,17 @@ class Config:
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "codellama:latest")
 
+        # LLM provider selection (ollama | openai | anthropic)
+        self.llm_provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+
+        # OpenAI settings (used when LLM_PROVIDER=openai)
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+        # Anthropic settings (used when LLM_PROVIDER=anthropic)
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.anthropic_model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+
         # Workspace settings
         self.workspace_path = Path(os.getenv("WORKSPACE_PATH", ".")).resolve()
 
@@ -54,6 +65,17 @@ class Config:
         """
         errors = []
 
+        # Validate LLM provider selection
+        valid_providers = ("ollama", "openai", "anthropic")
+        if self.llm_provider not in valid_providers:
+            errors.append(
+                f"LLM_PROVIDER must be one of {valid_providers}, got '{self.llm_provider}'"
+            )
+        elif self.llm_provider == "openai" and not self.openai_api_key:
+            errors.append("OPENAI_API_KEY must be set when LLM_PROVIDER=openai")
+        elif self.llm_provider == "anthropic" and not self.anthropic_api_key:
+            errors.append("ANTHROPIC_API_KEY must be set when LLM_PROVIDER=anthropic")
+
         # Validate workspace path
         if not self.workspace_path.exists():
             errors.append(f"Workspace path does not exist: {self.workspace_path}")
@@ -72,8 +94,17 @@ class Config:
         table.add_column("Setting", style="cyan")
         table.add_column("Value", style="yellow")
 
+        table.add_row("LLM Provider", self.llm_provider)
         table.add_row("Ollama Host", self.ollama_host)
         table.add_row("Ollama Model", self.ollama_model)
+        if self.llm_provider == "openai":
+            table.add_row("OpenAI Model", self.openai_model)
+            table.add_row("OpenAI API Key", "***set***" if self.openai_api_key else "(not set)")
+        if self.llm_provider == "anthropic":
+            table.add_row("Anthropic Model", self.anthropic_model)
+            table.add_row(
+                "Anthropic API Key", "***set***" if self.anthropic_api_key else "(not set)"
+            )
         table.add_row("Workspace Path", str(self.workspace_path))
         table.add_row("Max History Length", str(self.max_history_length))
         table.add_row("History Enabled", str(self.history_enabled))
@@ -98,6 +129,11 @@ class Config:
         valid_keys = {
             "OLLAMA_HOST": "ollama_host",
             "OLLAMA_MODEL": "ollama_model",
+            "LLM_PROVIDER": "llm_provider",
+            "OPENAI_API_KEY": "openai_api_key",
+            "OPENAI_MODEL": "openai_model",
+            "ANTHROPIC_API_KEY": "anthropic_api_key",
+            "ANTHROPIC_MODEL": "anthropic_model",
             "WORKSPACE_PATH": "workspace_path",
             "MAX_HISTORY_LENGTH": "max_history_length",
             "HISTORY_ENABLED": "history_enabled",

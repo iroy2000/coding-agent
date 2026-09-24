@@ -180,11 +180,22 @@ coding-agent config --set MAX_HISTORY_LENGTH=100
 
 | Variable | Default | What it does |
 |---|---|---|
+| `LLM_PROVIDER` | `ollama` | Backend to use: `ollama`, `openai`, or `anthropic` |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `codellama:latest` | Model used for chat |
+| `OLLAMA_MODEL` | `codellama:latest` | Model used for chat (when `LLM_PROVIDER=ollama`) |
+| `OPENAI_API_KEY` | _(none)_ | Required when `LLM_PROVIDER=openai` |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Model used for chat (when `LLM_PROVIDER=openai`) |
+| `ANTHROPIC_API_KEY` | _(none)_ | Required when `LLM_PROVIDER=anthropic` |
+| `ANTHROPIC_MODEL` | `claude-3-5-sonnet-latest` | Model used for chat (when `LLM_PROVIDER=anthropic`) |
 | `WORKSPACE_PATH` | `.` | Working directory the agent operates in |
 | `MAX_HISTORY_LENGTH` | `50` | Max messages kept in memory per session |
 | `HISTORY_ENABLED` | `true` | Whether conversation history is saved |
+
+To use a hosted provider instead of local Ollama:
+```bash
+coding-agent config --set LLM_PROVIDER=openai
+coding-agent config --set OPENAI_API_KEY=sk-...
+```
 
 ---
 

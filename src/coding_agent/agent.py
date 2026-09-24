@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.prompt import Confirm
 from rich.syntax import Syntax
 
+from coding_agent.llm.base import LLMProvider
 from coding_agent.llm.ollama_client import OllamaClient
 from coding_agent.llm.prompts import get_system_prompt
 from coding_agent.storage.history import HistoryManager
@@ -42,6 +43,7 @@ class CodingAgent:
         auto_approve_writes: bool = False,
         confirm_write: Optional[Callable[[str, str], bool]] = None,
         enable_git_auto_commit: bool = False,
+        llm_client: Optional[LLMProvider] = None,
     ) -> None:
         """
         Initialize the coding agent.
@@ -68,12 +70,17 @@ class CodingAgent:
                 automatically commit each successful WRITE_FILE/EDIT_FILE with
                 a message tagged `[coding-agent] ...`, so changes can always be
                 reviewed/undone via git. Opt-in, off by default.
+            llm_client: Optional pre-constructed `LLMProvider` (e.g. an
+                `OpenAIProvider`/`AnthropicProvider` built via
+                `coding_agent.llm.factory.create_llm_client`). If omitted,
+                falls back to constructing an `OllamaClient` from
+                `ollama_host`/`model`, preserving prior default behavior.
         """
         self.workspace_path = workspace_path
         self.model = model
         self.file_manager = FileManager(workspace_path)
         self.git_manager = GitManager(workspace_path)
-        self.llm_client = OllamaClient(host=ollama_host, model=model)
+        self.llm_client: LLMProvider = llm_client or OllamaClient(host=ollama_host, model=model)
         self.max_history = max_history
         self.conversation_history: List[Dict[str, str]] = []
         self.system_prompt = get_system_prompt(workspace_path)

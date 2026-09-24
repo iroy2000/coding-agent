@@ -332,3 +332,37 @@ class TestGitAutoCommitIntegration:
         assert success is True
         _, log_message = agent.git_manager.get_last_commit_message()
         assert log_message == "[coding-agent] EDIT_FILE target.py"
+
+
+class TestLLMClientInjection:
+    """Tests for the injectable llm_client constructor param (issue #9)."""
+
+    def test_defaults_to_ollama_client_when_not_provided(self, temp_dir: Path):
+        from coding_agent.llm.ollama_client import OllamaClient
+
+        agent = CodingAgent(workspace_path=str(temp_dir), enable_history=False)
+
+        assert isinstance(agent.llm_client, OllamaClient)
+
+    def test_uses_injected_llm_client(self, temp_dir: Path):
+        from coding_agent.llm.base import LLMProvider
+
+        class FakeProvider(LLMProvider):
+            provider_name = "fake"
+
+            def check_connection(self) -> bool:
+                return True
+
+            def generate(self, prompt, context=None) -> str:
+                return f"fake response to: {prompt}"
+
+            def stream_generate(self, prompt, context=None):
+                yield f"fake response to: {prompt}"
+
+        fake_client = FakeProvider()
+        agent = CodingAgent(
+            workspace_path=str(temp_dir), enable_history=False, llm_client=fake_client
+        )
+
+        assert agent.llm_client is fake_client
+        assert agent.llm_client.generate("hello") == "fake response to: hello"
