@@ -189,6 +189,56 @@ class TestReadFileTool:
         assert "error" in result
         # Should mention security or path validation
 
+    @pytest.mark.asyncio
+    async def test_read_file_start_line_zero_rejected(self, mcp_server):
+        """Regression: start_line=0 was silently treated as "unset" due to a
+        falsy-zero truthiness check, even though the schema declares
+        minimum: 1. It must now be rejected with a clear error instead of
+        silently returning line 1.
+        """
+        result = await mcp_server.call_tool("read_file", {
+            "path": "test.py",
+            "start_line": 0,
+        })
+
+        assert result["success"] is False
+        assert "start_line" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_read_file_end_line_zero_rejected(self, mcp_server):
+        """Regression: end_line=0 was silently treated as "unset" (falsy),
+        so the tool would return the whole file rather than an error.
+        """
+        result = await mcp_server.call_tool("read_file", {
+            "path": "test.py",
+            "end_line": 0,
+        })
+
+        assert result["success"] is False
+        assert "end_line" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_read_file_start_line_out_of_range(self, mcp_server):
+        """start_line beyond the file's line count must error, not silently
+        return an empty/truncated result."""
+        result = await mcp_server.call_tool("read_file", {
+            "path": "test.py",
+            "start_line": 1000,
+        })
+
+        assert result["success"] is False
+        assert "out of range" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_read_file_end_line_out_of_range(self, mcp_server):
+        result = await mcp_server.call_tool("read_file", {
+            "path": "test.py",
+            "end_line": 1000,
+        })
+
+        assert result["success"] is False
+        assert "out of range" in result["error"]
+
 
 class TestListFilesTool:
     """Test list_files tool implementation."""

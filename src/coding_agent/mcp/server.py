@@ -172,8 +172,32 @@ class MCPServer:
             
             if start_line is not None or end_line is not None:
                 lines = content.splitlines()
-                start_idx = (start_line - 1) if start_line else 0
-                end_idx = end_line if end_line else len(lines)
+                total_lines = len(lines)
+
+                # Reject non-positive values explicitly rather than relying
+                # on truthiness: `start_line if start_line else 0` treats 0
+                # (and other falsy-but-invalid values) as "unset" instead of
+                # the invalid value it actually is (schema declares
+                # minimum: 1 for both).
+                if start_line is not None and start_line < 1:
+                    return {"success": False, "error": f"start_line must be >= 1, got {start_line}"}
+                if end_line is not None and end_line < 1:
+                    return {"success": False, "error": f"end_line must be >= 1, got {end_line}"}
+
+                start_idx = (start_line - 1) if start_line is not None else 0
+                end_idx = end_line if end_line is not None else total_lines
+
+                if start_idx < 0 or start_idx >= total_lines:
+                    return {
+                        "success": False,
+                        "error": f"start_line {start_line} out of range (file has {total_lines} lines)",
+                    }
+                if end_idx < start_idx or end_idx > total_lines:
+                    return {
+                        "success": False,
+                        "error": f"end_line {end_line} out of range (file has {total_lines} lines)",
+                    }
+
                 content = "\n".join(lines[start_idx:end_idx])
             
             return {"success": True, "content": content}
