@@ -338,9 +338,12 @@ class MCPStdioServer:
             return [TextContent(type="text", text="Error: History tools not enabled")]
         
         try:
-            # Search history
-            results = self.history_manager.search_messages(query, session_id=session_id)
-            
+            # Search history. `search_sessions` scans all sessions and has no
+            # session_id parameter, so filter to a specific session here.
+            results = self.history_manager.search_sessions(query)
+            if session_id:
+                results = [r for r in results if r.get("session_id") == session_id]
+
             if not results:
                 result_text = f"No results found for query: {query}"
             else:
@@ -348,9 +351,9 @@ class MCPStdioServer:
                 formatted_results = []
                 for i, result in enumerate(results[:10], 1):  # Limit to 10 results
                     session = result.get("session_id", "unknown")
-                    role = result.get("role", "unknown")
-                    content = result.get("content", "")[:200]  # Truncate
-                    formatted_results.append(f"{i}. [{session}] {role}: {content}...")
+                    match = result.get("match", "")
+                    preview = match[:200] + ("..." if len(match) > 200 else "")
+                    formatted_results.append(f"{i}. [{session}]: {preview}")
                 
                 result_text = f"Found {len(results)} results (showing top 10):\n\n" + "\n\n".join(formatted_results)
             
