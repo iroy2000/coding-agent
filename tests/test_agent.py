@@ -366,3 +366,85 @@ class TestLLMClientInjection:
 
         assert agent.llm_client is fake_client
         assert agent.llm_client.generate("hello") == "fake response to: hello"
+
+
+class TestStructuredToolCalling:
+    """Tests for the structured tool-calling path (issue #8), used when the
+    configured llm_client declares `supports_tools = True`."""
+
+    @staticmethod
+    def _make_tool_calling_agent(temp_dir: Path, tool_calls=None, text=""):
+        from coding_agent.llm.base import LLMProvider, ToolCall, ToolCallResult
+
+        class FakeToolCallingProvider(LLMProvider):
+            provider_name = "fake-tools"
+            supports_tools = True
+
+            def __init__(self):
+                self.calls_seen = []
+
+            def check_connection(self) -> bool:
+                return True
+
+            def generate(self, prompt, context=None) -> str:
+                return text
+
+            def stream_generate(self, prompt, context=None):
+                yield text
+
+            def generate_with_tools(self, prompt, context=None, tools=None):
+                self.calls_seen.append((prompt, tools))
+                if self.calls_seen and len(self.calls_seen) > 1:
+                    # Follow-up call (after tool execution): just answer in text.
+                    return ToolCallResult(text="Here is the answer based on the file.")
+                return ToolCallResult(
+                    text=text, tool_calls=[ToolCall(**tc) for tc in (tool_calls or [])]
+                )
+
+        fake_client = FakeToolCallingProvider()
+        agent = CodingAgent(
+            workspace_path=str(temp_dir), enable_history=False, llm_client=fake_client
+        )
+        return agent, fake_client
+
+    def test_tool_call_executes_read_file_operation(self, temp_dir: Path):
+        (temp_dir / "notes.txt").write_text("hello from file")
+        agent, fake_client = self._make_tool_calling_agent(
+            temp_dir, tool_calls=[{"name": "read_file", "arguments": {"path": "notes.txt"}}]
+        )
+
+        response = agent.process_message("What's in notes.txt?", stream=False)
+
+        assert "Here is the answer based on the file." in response
+        # First call passed the shared tool schema; agent used the tool-call
+        # result rather than regex-parsing free text.
+        first_call_prompt, first_call_tools = fake_client.calls_seen[0]
+        assert first_call_prompt == "What's in notes.txt?"
+        assert first_call_tools and any(t["name"] == "read_file" for t in first_call_tools)
+
+    def test_plain_text_reply_with_no_tool_calls(self, temp_dir: Path):
+        agent, fake_client = self._make_tool_calling_agent(
+            temp_dir, tool_calls=[], text="Just a normal reply, no tools needed."
+        )
+
+        response = agent.process_message("Hello", stream=False)
+
+        assert response == "Just a normal reply, no tools needed."
+        # Only one call was made (no follow-up, since no operations ran).
+        assert len(fake_client.calls_seen) == 1
+
+    def test_tool_call_write_file_auto_approved(self, temp_dir: Path):
+        agent, fake_client = self._make_tool_calling_agent(
+            temp_dir,
+            tool_calls=[
+                {
+                    "name": "write_file",
+                    "arguments": {"path": "new.py", "content": "print('hi')\n"},
+                }
+            ],
+        )
+        agent.auto_approve_writes = True
+
+        agent.process_message("Create new.py", stream=False)
+
+        assert (temp_dir / "new.py").read_text() == "print('hi')\n"

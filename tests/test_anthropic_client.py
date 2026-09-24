@@ -146,6 +146,58 @@ class TestAnthropicProvider:
 
         assert "".join(chunks) == "Hello world!"
 
+    @patch("anthropic.Anthropic")
+    def test_generate_with_tools_returns_tool_calls(self, mock_anthropic_class):
+        """Test that a tool_use content block is parsed into a ToolCall."""
+        mock_client = Mock()
+        tool_use_block = Mock(type="tool_use", input={"path": "README.md"}, id="tu_1")
+        tool_use_block.name = "read_file"
+        mock_client.messages.create.return_value = Mock(content=[tool_use_block])
+        mock_anthropic_class.return_value = mock_client
+
+        client = AnthropicProvider(api_key="test-key")
+        result = client.generate_with_tools(
+            "Read README.md", tools=[{"name": "read_file", "description": "", "parameters": {}}]
+        )
+
+        assert result.text == ""
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].name == "read_file"
+        assert result.tool_calls[0].arguments == {"path": "README.md"}
+        assert result.tool_calls[0].id == "tu_1"
+
+    @patch("anthropic.Anthropic")
+    def test_generate_with_tools_returns_plain_text_when_no_tool_call(self, mock_anthropic_class):
+        """Test a normal conversational reply with no tool_use blocks."""
+        mock_client = Mock()
+        text_block = Mock(type="text", text="Sure, how can I help?")
+        mock_client.messages.create.return_value = Mock(content=[text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        client = AnthropicProvider(api_key="test-key")
+        result = client.generate_with_tools("Hello")
+
+        assert result.text == "Sure, how can I help?"
+        assert result.tool_calls == []
+
+    @patch("anthropic.Anthropic")
+    def test_generate_with_tools_error_handling(self, mock_anthropic_class):
+        """Test error handling during tool-calling generation."""
+        mock_client = Mock()
+        mock_client.messages.create.side_effect = Exception("API error")
+        mock_anthropic_class.return_value = mock_client
+
+        client = AnthropicProvider(api_key="test-key")
+        result = client.generate_with_tools("Test prompt")
+
+        assert result.text == ""
+        assert result.tool_calls == []
+
+    def test_supports_tools_is_true(self):
+        """AnthropicProvider must declare tool-calling support for the
+        agent's structured tool-calling path (issue #8)."""
+        assert AnthropicProvider.supports_tools is True
+
 
 class TestAnthropicConnectionHelper:
     """Test suite for check_anthropic_connection()."""
