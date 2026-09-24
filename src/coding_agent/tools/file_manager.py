@@ -187,7 +187,8 @@ class FileManager:
                 return False, f"Error: Path '{file_path}' is outside workspace"
 
             # Check if file exists and overwrite is False
-            if path.exists() and not overwrite:
+            already_existed = path.exists()
+            if already_existed and not overwrite:
                 return False, f"Error: File '{file_path}' already exists (use overwrite=True to replace)"
 
             # Check if ignored
@@ -201,7 +202,10 @@ class FileManager:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            action = "overwritten" if path.exists() and overwrite else "created"
+            # Determine whether this replaced an existing file based on the
+            # pre-write state (checking path.exists() after writing would
+            # always be True, since we just created it).
+            action = "overwritten" if already_existed else "created"
             return True, f"Successfully {action} '{file_path}'"
 
         except PermissionError:

@@ -358,7 +358,7 @@ def history(
         
         if not session_data:
             console.print(f"[red]Session '{view}' not found[/red]")
-            return
+            raise typer.Exit(1)
         
         # Display session info
         from rich.panel import Panel
@@ -392,6 +392,7 @@ def history(
             console.print(f"[green]>[/green] Session '{delete}' deleted")
         else:
             console.print(f"[red]Failed to delete session '{delete}'[/red]")
+            raise typer.Exit(1)
     
     elif export:
         if not output:
@@ -401,6 +402,7 @@ def history(
             console.print(f"[green]>[/green] Session exported to: {output}")
         else:
             console.print(f"[red]Failed to export session '{export}'[/red]")
+            raise typer.Exit(1)
     
     else:
         console.print("[bold]Conversation History[/bold]\n")

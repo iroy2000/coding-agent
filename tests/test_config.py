@@ -245,6 +245,63 @@ class TestConfigUpdate:
         assert "SYNTAX_THEME=nord" in content
         assert "OLLAMA_MODEL=codellama:latest" in content
 
+    def test_update_reflects_new_value_immediately(self, clean_env, tmp_path, monkeypatch):
+        """cfg.display() right after cfg.update() should show the new value,
+        not the value captured at __init__ time."""
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        assert cfg.update("OLLAMA_MODEL", "new-model") is True
+        assert cfg.ollama_model == "new-model"
+
+    def test_update_max_history_length_reflects_as_int(self, clean_env, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        assert cfg.update("MAX_HISTORY_LENGTH", "200") is True
+        assert cfg.max_history_length == 200
+        assert isinstance(cfg.max_history_length, int)
+
+    def test_update_rejects_non_integer_max_history_length(self, clean_env, tmp_path, monkeypatch):
+        """A bad value must be rejected before it ever reaches the .env file,
+        since a corrupted MAX_HISTORY_LENGTH would otherwise crash every
+        subsequent CLI invocation (Config.__init__ used to call int() on it
+        unguarded)."""
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        assert cfg.update("MAX_HISTORY_LENGTH", "notanumber") is False
+        assert cfg.max_history_length == 50
+        assert not (tmp_path / ".env").exists()
+
+    def test_update_rejects_non_positive_max_history_length(self, clean_env, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        assert cfg.update("MAX_HISTORY_LENGTH", "0") is False
+        assert cfg.update("MAX_HISTORY_LENGTH", "-5") is False
+
+    def test_update_rejects_invalid_llm_provider(self, clean_env, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        assert cfg.update("LLM_PROVIDER", "badprovider") is False
+        assert cfg.llm_provider == "ollama"
+        assert not (tmp_path / ".env").exists()
+
+    def test_update_accepts_valid_llm_provider(self, clean_env, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cfg = Config()
+        assert cfg.update("LLM_PROVIDER", "anthropic") is True
+        assert cfg.llm_provider == "anthropic"
+
+
+class TestConfigMalformedEnv:
+    def test_malformed_max_history_length_falls_back_to_default(
+        self, clean_env, tmp_path, monkeypatch
+    ):
+        """A hand-edited or previously-corrupted .env with a non-numeric
+        MAX_HISTORY_LENGTH must not crash Config() construction."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("MAX_HISTORY_LENGTH", "notanumber")
+        cfg = Config()
+        assert cfg.max_history_length == 50
+
 
 class TestConfigDisplay:
     def test_display_prints_table_without_raising(self, clean_env, capsys):

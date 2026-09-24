@@ -546,7 +546,13 @@ class CodingAgent:
                         self._add_to_history("system", result)
                     
                     # Get follow-up response from LLM
-                    follow_up_prompt = "Now that you have the file content, please answer the user's original question."
+                    follow_up_prompt = (
+                        "Now that you have the file/command output above, answer the "
+                        "user's original question in plain natural language. "
+                        "Do NOT use READ_FILE, LIST_FILES, SEARCH_FILES, RUN_COMMAND, "
+                        "WRITE_FILE, EDIT_FILE, or any other command syntax in this "
+                        "response — just explain the answer directly."
+                    )
                     self._add_to_history("system", follow_up_prompt)
                     
                     context = self._build_context()
