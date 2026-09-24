@@ -419,6 +419,98 @@ class TestLLMClientInjection:
         assert agent.llm_client.generate("hello") == "fake response to: hello"
 
 
+class TestBuildContextIncludesOperationResults:
+    """Regression tests: `_build_context()` previously filtered out *all*
+    system-role messages from conversation_history, assuming they were
+    duplicates of the persistent system prompt. In reality, system-role
+    entries are how file content / command output / follow-up instructions
+    get recorded (`_add_to_history("system", ...)`) - filtering them out
+    meant the model's follow-up "explain what you found" turn never
+    actually saw the file/command content it was asked to explain."""
+
+    def test_read_file_content_reaches_followup_context(self, temp_dir: Path):
+        from coding_agent.llm.base import LLMProvider
+
+        (temp_dir / "math_utils.py").write_text("def add(a, b):\n    return a + b\n")
+
+        class FakeProvider(LLMProvider):
+            provider_name = "fake"
+
+            def __init__(self):
+                self.calls = []
+
+            def check_connection(self) -> bool:
+                return True
+
+            def generate(self, prompt, context=None) -> str:
+                self.calls.append((prompt, context or []))
+                if len(self.calls) == 1:
+                    return "READ_FILE: math_utils.py"
+                return "It defines an add function."
+
+            def stream_generate(self, prompt, context=None):
+                yield self.generate(prompt, context)
+
+        fake = FakeProvider()
+        agent = CodingAgent(
+            workspace_path=str(temp_dir),
+            enable_history=False,
+            llm_client=fake,
+            auto_approve_commands=True,
+        )
+        agent.process_message("what does math_utils.py do?", stream=False)
+
+        assert len(fake.calls) == 2
+        _, followup_context = fake.calls[1]
+        assert any("def add" in msg["content"] for msg in followup_context)
+
+    def test_run_command_output_reaches_followup_context(self, temp_dir: Path):
+        from coding_agent.llm.base import LLMProvider
+
+        class FakeProvider(LLMProvider):
+            provider_name = "fake"
+
+            def __init__(self):
+                self.calls = []
+
+            def check_connection(self) -> bool:
+                return True
+
+            def generate(self, prompt, context=None) -> str:
+                self.calls.append((prompt, context or []))
+                if len(self.calls) == 1:
+                    return "RUN_COMMAND: echo distinctive_marker_xyz"
+                return "The command printed a marker."
+
+            def stream_generate(self, prompt, context=None):
+                yield self.generate(prompt, context)
+
+        fake = FakeProvider()
+        agent = CodingAgent(
+            workspace_path=str(temp_dir),
+            enable_history=False,
+            llm_client=fake,
+            auto_approve_commands=True,
+        )
+        agent.process_message("run echo and tell me what it printed", stream=False)
+
+        assert len(fake.calls) == 2
+        _, followup_context = fake.calls[1]
+        assert any("distinctive_marker_xyz" in msg["content"] for msg in followup_context)
+
+    def test_build_context_keeps_single_system_prompt_at_start(self, temp_dir: Path):
+        agent = CodingAgent(workspace_path=str(temp_dir), enable_history=False)
+        agent._add_to_history("user", "hello")
+        agent._add_to_history("system", "some operation result")
+        agent._add_to_history("assistant", "ok")
+
+        context = agent._build_context()
+
+        assert context[0]["role"] == "system"
+        assert context[0]["content"] == agent.system_prompt
+        assert {"role": "system", "content": "some operation result"} in context[1:]
+
+
 class TestStructuredToolCalling:
     """Tests for the structured tool-calling path (issue #8), used when the
     configured llm_client declares `supports_tools = True`."""
