@@ -6,6 +6,7 @@ from typing import Optional
 
 from dotenv import find_dotenv, load_dotenv
 from rich.console import Console
+from rich.markup import escape
 
 console = Console()
 
@@ -76,7 +77,7 @@ class Config:
         """Create necessary directories if they don't exist."""
         self.user_data_dir.mkdir(parents=True, exist_ok=True)
         self.history_dir.mkdir(parents=True, exist_ok=True)
-        console.print(f"[dim]User data directory: {self.user_data_dir}[/dim]")
+        console.print(f"[dim]User data directory: {escape(str(self.user_data_dir))}[/dim]")
 
     def validate(self) -> tuple[bool, list[str]]:
         """
@@ -164,7 +165,7 @@ class Config:
         }
 
         if key not in valid_keys:
-            console.print(f"[red]Invalid configuration key: {key}[/red]")
+            console.print(f"[red]Invalid configuration key: {escape(key)}[/red]")
             console.print(f"Valid keys: {', '.join(valid_keys.keys())}")
             return False
 
@@ -174,7 +175,7 @@ class Config:
             try:
                 parsed_length = int(value)
             except ValueError:
-                console.print(f"[red]MAX_HISTORY_LENGTH must be an integer, got '{value}'[/red]")
+                console.print(f"[red]MAX_HISTORY_LENGTH must be an integer, got '{escape(value)}'[/red]")
                 return False
             if parsed_length < 1:
                 console.print(
@@ -185,7 +186,7 @@ class Config:
             valid_providers = ("ollama", "openai", "anthropic")
             if value.strip().lower() not in valid_providers:
                 console.print(
-                    f"[red]LLM_PROVIDER must be one of {valid_providers}, got '{value}'[/red]"
+                    f"[red]LLM_PROVIDER must be one of {valid_providers}, got '{escape(value)}'[/red]"
                 )
                 return False
 
@@ -230,7 +231,7 @@ class Config:
         else:
             setattr(self, attr_name, value)
 
-        console.print(f"[green]Updated {key}={value}[/green]")
+        console.print(f"[green]Updated {escape(key)}={escape(value)}[/green]")
         console.print("[yellow]Restart the application for changes to take effect[/yellow]")
         return True
 
