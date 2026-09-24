@@ -12,6 +12,7 @@ provider splits it out of the shared context format before calling the API.
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from rich.console import Console
+from rich.markup import escape
 
 from coding_agent.llm.base import LLMProvider, ToolCall, ToolCallResult
 
@@ -114,7 +115,7 @@ class AnthropicProvider(LLMProvider):
             return True
         except Exception as e:
             console.print("[red]Failed to connect to Anthropic[/red]")
-            console.print(f"[dim]Error: {str(e)}[/dim]")
+            console.print(f"[dim]Error: {escape(str(e))}[/dim]")
             return False
 
     def list_models(self) -> List[str]:
@@ -155,7 +156,7 @@ class AnthropicProvider(LLMProvider):
                 if getattr(block, "type", None) == "text"
             )
         except Exception as e:
-            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            console.print(f"[red]Generation failed: {escape(str(e))}[/red]")
             return ""
 
     def stream_generate(
@@ -183,7 +184,7 @@ class AnthropicProvider(LLMProvider):
                 for text in stream.text_stream:
                     yield text
         except Exception as e:
-            console.print(f"[red]Streaming failed: {str(e)}[/red]")
+            console.print(f"[red]Streaming failed: {escape(str(e))}[/red]")
             yield ""
 
     def generate_with_tools(
@@ -243,7 +244,7 @@ class AnthropicProvider(LLMProvider):
 
             return ToolCallResult(text="".join(text_parts), tool_calls=tool_calls)
         except Exception as e:
-            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            console.print(f"[red]Generation failed: {escape(str(e))}[/red]")
             return ToolCallResult(text="")
 
 

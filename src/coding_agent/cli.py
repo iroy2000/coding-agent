@@ -358,7 +358,7 @@ def history(
         session_data = history_mgr.load_session(view)
         
         if not session_data:
-            console.print(f"[red]Session '{view}' not found[/red]")
+            console.print(f"[red]Session '{escape(view)}' not found[/red]")
             raise typer.Exit(1)
         
         # Display session info

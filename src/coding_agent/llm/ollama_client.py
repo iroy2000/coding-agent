@@ -4,6 +4,7 @@ from typing import Generator, Optional
 
 import ollama
 from rich.console import Console
+from rich.markup import escape
 
 from coding_agent.llm.base import LLMProvider
 
@@ -39,8 +40,8 @@ class OllamaClient(LLMProvider):
             self.client.list()
             return True
         except Exception as e:
-            console.print(f"[red]Failed to connect to Ollama at {self.host}[/red]")
-            console.print(f"[dim]Error: {str(e)}[/dim]")
+            console.print(f"[red]Failed to connect to Ollama at {escape(self.host)}[/red]")
+            console.print(f"[dim]Error: {escape(str(e))}[/dim]")
             return False
 
     def list_models(self) -> list[str]:
@@ -63,7 +64,7 @@ class OllamaClient(LLMProvider):
                 return [m for m in models if m]  # Filter out empty strings
             return []
         except Exception as e:
-            console.print(f"[red]Failed to list models: {str(e)}[/red]")
+            console.print(f"[red]Failed to list models: {escape(str(e))}[/red]")
             return []
 
     def check_model_exists(self, model_name: Optional[str] = None) -> bool:
@@ -99,14 +100,14 @@ class OllamaClient(LLMProvider):
         pull_model = model_name or self.model
 
         try:
-            console.print(f"[yellow]Pulling model: {pull_model}...[/yellow]")
+            console.print(f"[yellow]Pulling model: {escape(pull_model)}...[/yellow]")
             console.print("[dim]This may take a while for large models...[/dim]")
 
             # Pull the model with progress
             for progress in self.client.pull(pull_model, stream=True):
                 status = progress.get("status", "")
                 if status:
-                    console.print(f"[dim]{status}[/dim]", end="\r")
+                    console.print(f"[dim]{escape(status)}[/dim]", end="\r")
 
             console.print(f"\n[green]Successfully pulled model: {pull_model}[/green]")
             return True
@@ -132,7 +133,7 @@ class OllamaClient(LLMProvider):
             response = self.client.chat(model=self.model, messages=messages)
             return response["message"]["content"]
         except Exception as e:
-            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            console.print(f"[red]Generation failed: {escape(str(e))}[/red]")
             return ""
 
     def stream_generate(
@@ -158,7 +159,7 @@ class OllamaClient(LLMProvider):
                 if "message" in chunk and "content" in chunk["message"]:
                     yield chunk["message"]["content"]
         except Exception as e:
-            console.print(f"[red]Streaming failed: {str(e)}[/red]")
+            console.print(f"[red]Streaming failed: {escape(str(e))}[/red]")
             yield ""
 
 

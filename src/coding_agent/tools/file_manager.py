@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import pathspec
 from rich.console import Console
+from rich.markup import escape
 
 console = Console()
 
@@ -85,7 +86,7 @@ class FileManager:
                     patterns = f.read().splitlines()
                 return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
             except Exception as e:
-                console.print(f"[yellow]Warning: Could not load .gitignore: {e}[/yellow]")
+                console.print(f"[yellow]Warning: Could not load .gitignore: {escape(str(e))}[/yellow]")
         return None
 
     def _is_ignored(self, path: Path) -> bool:
@@ -324,7 +325,7 @@ class FileManager:
                             walk_directory(item, current_depth + 1)
 
                 except PermissionError:
-                    console.print(f"[yellow]Warning: Permission denied for {current_path}[/yellow]")
+                    console.print(f"[yellow]Warning: Permission denied for {escape(str(current_path))}[/yellow]")
 
             walk_directory(path, 0)
             return True, files
@@ -465,7 +466,7 @@ class FileManager:
                         except (UnicodeDecodeError, PermissionError):
                             continue
             except PermissionError:
-                console.print(f"[yellow]Warning: Permission denied for {current_path}[/yellow]")
+                console.print(f"[yellow]Warning: Permission denied for {escape(str(current_path))}[/yellow]")
 
         walk_directory(path)
         return True, matches

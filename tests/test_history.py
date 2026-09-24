@@ -374,3 +374,23 @@ class TestHistoryManager:
         # Verify only 2 remain
         sessions_after = hm.list_sessions()
         assert len(sessions_after) == 2
+
+    def test_load_session_error_preserves_brackets_in_output(self, temp_dir, monkeypatch, capsys):
+        """Regression: Rich markup silently drops `[...]` spans unless the
+        dynamic text is escaped, so an exception message containing brackets
+        (a real possibility for JSON/parse errors) must still display
+        intact in the printed error.
+        """
+        history_dir = temp_dir / "history"
+        hm = HistoryManager(history_dir=str(history_dir))
+        session_id = hm.create_session(workspace_path="/test/workspace", model="llama2")
+
+        def _boom(*args, **kwargs):
+            raise ValueError("bad token at position [3, 4]")
+
+        monkeypatch.setattr("json.load", _boom)
+        result = hm.load_session(session_id)
+
+        assert result is None
+        out = capsys.readouterr().out
+        assert "[3, 4]" in out

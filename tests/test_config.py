@@ -189,6 +189,17 @@ class TestConfigUpdate:
         result = cfg.update("NOT_A_REAL_KEY", "value")
         assert result is False
 
+    def test_update_rejects_invalid_key_preserves_brackets_in_output(self, clean_env, capsys):
+        """Regression: Rich markup silently drops `[...]` spans unless the
+        dynamic text is escaped first, so an invalid key/value containing
+        brackets must still display intact in the printed error.
+        """
+        cfg = Config()
+        result = cfg.update("NOT_A_REAL_KEY[extra]", "value")
+        assert result is False
+        out = capsys.readouterr().out
+        assert "NOT_A_REAL_KEY[extra]" in out
+
     def test_update_sets_env_var(self, clean_env):
         cfg = Config()
         result = cfg.update("OLLAMA_MODEL", "qwen2.5-coder")

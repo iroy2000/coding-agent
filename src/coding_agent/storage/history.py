@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from rich.console import Console
+from rich.markup import escape
 
 console = Console()
 
@@ -87,7 +88,7 @@ class HistoryManager:
             with open(session_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            console.print(f"[yellow]Warning: Could not save session: {e}[/yellow]")
+            console.print(f"[yellow]Warning: Could not save session: {escape(str(e))}[/yellow]")
 
     def add_message(
         self,
@@ -142,7 +143,7 @@ class HistoryManager:
             with open(session_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            console.print(f"[red]Error loading session: {e}[/red]")
+            console.print(f"[red]Error loading session: {escape(str(e))}[/red]")
             return None
 
     def list_sessions(
@@ -210,11 +211,11 @@ class HistoryManager:
                     if limit and len(sessions) >= limit:
                         break
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not read {session_file.name}: {e}[/yellow]")
+                    console.print(f"[yellow]Warning: Could not read {escape(session_file.name)}: {escape(str(e))}[/yellow]")
                     continue
 
         except Exception as e:
-            console.print(f"[red]Error listing sessions: {e}[/red]")
+            console.print(f"[red]Error listing sessions: {escape(str(e))}[/red]")
 
         return sessions
 
@@ -237,7 +238,7 @@ class HistoryManager:
             session_file.unlink()
             return True
         except Exception as e:
-            console.print(f"[red]Error deleting session: {e}[/red]")
+            console.print(f"[red]Error deleting session: {escape(str(e))}[/red]")
             return False
 
     def export_session(self, session_id: str, output_path: str, format: str = "json") -> bool:
@@ -314,7 +315,7 @@ class HistoryManager:
             return True
 
         except Exception as e:
-            console.print(f"[red]Error exporting session: {e}[/red]")
+            console.print(f"[red]Error exporting session: {escape(str(e))}[/red]")
             return False
 
     def prune_old_sessions(self, keep_count: int = 50) -> int:
@@ -388,6 +389,6 @@ class HistoryManager:
                     continue
 
         except Exception as e:
-            console.print(f"[red]Error searching sessions: {e}[/red]")
+            console.print(f"[red]Error searching sessions: {escape(str(e))}[/red]")
 
         return matching_sessions

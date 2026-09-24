@@ -9,6 +9,7 @@ import json
 from typing import Any, Dict, Generator, List, Optional
 
 from rich.console import Console
+from rich.markup import escape
 
 from coding_agent.llm.base import LLMProvider, ToolCall, ToolCallResult
 
@@ -60,7 +61,7 @@ class OpenAIProvider(LLMProvider):
             return True
         except Exception as e:
             console.print("[red]Failed to connect to OpenAI[/red]")
-            console.print(f"[dim]Error: {str(e)}[/dim]")
+            console.print(f"[dim]Error: {escape(str(e))}[/dim]")
             return False
 
     def list_models(self) -> List[str]:
@@ -97,7 +98,7 @@ class OpenAIProvider(LLMProvider):
             )
             return response.choices[0].message.content or ""
         except Exception as e:
-            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            console.print(f"[red]Generation failed: {escape(str(e))}[/red]")
             return ""
 
     def stream_generate(
@@ -126,7 +127,7 @@ class OpenAIProvider(LLMProvider):
                 if delta and delta.content:
                     yield delta.content
         except Exception as e:
-            console.print(f"[red]Streaming failed: {str(e)}[/red]")
+            console.print(f"[red]Streaming failed: {escape(str(e))}[/red]")
             yield ""
 
     def generate_with_tools(
@@ -174,7 +175,7 @@ class OpenAIProvider(LLMProvider):
 
             return ToolCallResult(text=message.content or "", tool_calls=tool_calls)
         except Exception as e:
-            console.print(f"[red]Generation failed: {str(e)}[/red]")
+            console.print(f"[red]Generation failed: {escape(str(e))}[/red]")
             return ToolCallResult(text="")
 
 
