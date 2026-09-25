@@ -202,16 +202,17 @@ class CodingAgent:
                     metadata=metadata
                 )
 
-        # Trim history if too long (keep system prompt + recent messages)
+        # Trim history if too long, simply keeping the most recent messages.
+        # Note: system-role entries here are operation results (file
+        # content, command output, etc.) that a later turn may depend on
+        # (see `_build_context`) - they must NOT be preferentially dropped
+        # in favor of an older system message. Previously this kept only the
+        # single oldest system message in the whole history and stripped
+        # *all* system messages out of the recent window, which could
+        # discard a just-produced READ_FILE/RUN_COMMAND result the very
+        # next turn needed.
         if len(self.conversation_history) > self.max_history:
-            # Keep system message and recent messages
-            system_messages = [msg for msg in self.conversation_history if msg["role"] == "system"]
-            recent_messages = self.conversation_history[-self.max_history:]
-            
-            # Combine, removing duplicate system messages
-            self.conversation_history = system_messages[:1] + [
-                msg for msg in recent_messages if msg["role"] != "system"
-            ]
+            self.conversation_history = self.conversation_history[-self.max_history:]
 
     def _build_context(self) -> List[Dict[str, str]]:
         """

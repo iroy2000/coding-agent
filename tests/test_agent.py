@@ -510,6 +510,31 @@ class TestBuildContextIncludesOperationResults:
         assert context[0]["content"] == agent.system_prompt
         assert {"role": "system", "content": "some operation result"} in context[1:]
 
+    def test_history_trim_keeps_recent_system_messages(self, temp_dir: Path):
+        """A recent operation-result (system) message must survive trimming.
+
+        Regression test: trimming previously kept only the single oldest
+        system message in the whole history and stripped *all* system
+        messages out of the recent window, so a READ_FILE/RUN_COMMAND result
+        produced just before hitting `max_history` was discarded even though
+        the very next turn (e.g. "explain that file") depended on it.
+        """
+        agent = CodingAgent(workspace_path=str(temp_dir), enable_history=False, max_history=5)
+        agent._add_to_history("user", "msg0")
+        agent._add_to_history("system", "old stale system msg")
+        for i in range(1, 8):
+            agent._add_to_history("user", f"user msg {i}")
+            agent._add_to_history("assistant", f"assistant msg {i}")
+        agent._add_to_history("system", "recent file content the user just asked about")
+        agent._add_to_history("user", "explain that file")
+
+        assert len(agent.conversation_history) == agent.max_history
+        assert any(
+            msg["role"] == "system" and "recent file content" in msg["content"]
+            for msg in agent.conversation_history
+        )
+        assert not any("old stale system msg" in msg["content"] for msg in agent.conversation_history)
+
 
 class TestStructuredToolCalling:
     """Tests for the structured tool-calling path (issue #8), used when the
