@@ -307,7 +307,7 @@ class HistoryManager:
 
             else:
                 console.print(
-                    f"[red]Unsupported export format: '{format}'. "
+                    f"[red]Unsupported export format: '{escape(format)}'. "
                     f"Use one of: json, txt, md[/red]"
                 )
                 return False
