@@ -459,6 +459,51 @@ class TestHistoryCommand:
         assert result.exit_code == 0
         assert "list[int]" in result.stdout
 
+    def test_view_preserves_brackets_in_workspace_path(self, monkeypatch, tmp_path):
+        """Regression: the session-info panel interpolated `workspace_path`
+        (and `model`) directly into a Rich-rendered string without escaping,
+        so a workspace directory name containing brackets (e.g.
+        `/tmp/[archived]/repo`) was silently mangled in the display, even
+        though the underlying stored data was correct.
+        """
+        self._isolate_home(monkeypatch, tmp_path)
+        from coding_agent.storage.history import HistoryManager
+
+        bracketed_workspace = tmp_path / "[archived]" / "repo"
+        bracketed_workspace.mkdir(parents=True)
+
+        history_mgr = HistoryManager()
+        session_id = history_mgr.create_session(
+            workspace_path=str(bracketed_workspace), model="codellama:latest"
+        )
+        history_mgr.add_message(session_id, role="user", content="hi")
+
+        result = runner.invoke(app, ["history", "--view", session_id])
+        assert result.exit_code == 0
+        assert "[archived]" in result.stdout
+
+    def test_list_preserves_brackets_in_workspace_path(self, monkeypatch, tmp_path):
+        """Regression: the sessions table title/cells interpolated the
+        workspace path directly without escaping, silently dropping any
+        bracketed path segment (e.g. `[archived]`).
+        """
+        self._isolate_home(monkeypatch, tmp_path)
+        from coding_agent.storage.history import HistoryManager
+
+        bracketed_workspace = tmp_path / "[archived]" / "repo"
+        bracketed_workspace.mkdir(parents=True)
+
+        history_mgr = HistoryManager()
+        history_mgr.create_session(workspace_path=str(bracketed_workspace), model="codellama:latest")
+
+        result = runner.invoke(
+            app,
+            ["history", "--list", "--workspace", str(bracketed_workspace)],
+            env={"COLUMNS": "200"},
+        )
+        assert result.exit_code == 0
+        assert "[archived]" in result.stdout
+
     def test_delete_unknown_session_reports_failure(self, monkeypatch, tmp_path):
         self._isolate_home(monkeypatch, tmp_path)
         result = runner.invoke(app, ["history", "--delete", "does-not-exist"])

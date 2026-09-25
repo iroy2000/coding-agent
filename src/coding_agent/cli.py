@@ -118,7 +118,7 @@ def chat(
                     console.print("\n[bold]Available Models:[/bold]")
                     for model in models:
                         marker = " [green](current)[/green]" if model == active_model else ""
-                        console.print(f"  • {model}{marker}")
+                        console.print(f"  • {escape(model)}{marker}")
                 else:
                     console.print("[yellow]No models found[/yellow]")
                 continue
@@ -190,7 +190,7 @@ def init() -> None:
         if config.llm_provider == "ollama":
             console.print("\n[yellow]Ollama Setup Instructions:[/yellow]")
             console.print("1. Install Ollama: https://ollama.com")
-            console.print(f"2. Pull the model: [cyan]ollama pull {get_active_model(config)}[/cyan]")
+            console.print(f"2. Pull the model: [cyan]ollama pull {escape(get_active_model(config))}[/cyan]")
             console.print(f"3. Or choose a different model in .env file")
         else:
             console.print(
@@ -310,7 +310,7 @@ def history(
             if filter_workspace:
                 console.print(
                     f"[yellow]No conversation sessions found for workspace: "
-                    f"{Path(filter_workspace).resolve()}[/yellow]"
+                    f"{escape(str(Path(filter_workspace).resolve()))}[/yellow]"
                 )
                 console.print("[dim]Use --all to see sessions from every workspace[/dim]")
             else:
@@ -319,7 +319,7 @@ def history(
         
         title = f"Recent Conversation Sessions (showing {len(sessions)})"
         if filter_workspace:
-            title += f" [workspace: {Path(filter_workspace).resolve()}]"
+            title += f" [workspace: {escape(str(Path(filter_workspace).resolve()))}]"
         table = Table(title=title, 
                      show_header=True, header_style="bold cyan")
         table.add_column("Session ID", style="cyan")
@@ -345,9 +345,9 @@ def history(
                 created_fmt = "Unknown"
             
             table.add_row(
-                session.get("session_id", ""),
+                escape(session.get("session_id", "")),
                 created_fmt,
-                workspace_short,
+                escape(workspace_short),
                 str(session.get("message_count", 0))
             )
         
@@ -364,10 +364,10 @@ def history(
         # Display session info
         from rich.panel import Panel
         
-        info = f"""[bold]Session ID:[/bold] {session_data.get('session_id')}
-[bold]Created:[/bold] {session_data.get('created_at')}
-[bold]Workspace:[/bold] {session_data.get('workspace_path')}
-[bold]Model:[/bold] {session_data.get('model')}
+        info = f"""[bold]Session ID:[/bold] {escape(str(session_data.get('session_id')))}
+[bold]Created:[/bold] {escape(str(session_data.get('created_at')))}
+[bold]Workspace:[/bold] {escape(str(session_data.get('workspace_path')))}
+[bold]Model:[/bold] {escape(str(session_data.get('model')))}
 [bold]Messages:[/bold] {len(session_data.get('messages', []))}"""
         
         console.print(Panel(info, title="Session Details", border_style="cyan"))

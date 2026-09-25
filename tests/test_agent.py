@@ -157,6 +157,29 @@ class TestExecuteRunCommand:
         assert "exited with code 1" in result
 
 
+class TestConfirmPromptsPreserveBrackets:
+    """Regression: `_default_confirm_command`/`_default_confirm_write` printed
+    the command/path directly into an f-string passed to `console.print()`
+    without escaping. Rich silently drops any `[...]` span it doesn't
+    recognize as markup, so a command or path containing brackets (e.g.
+    `python -c "print([1, 2, 3])"`) was shown to the user with that content
+    missing from the confirmation prompt - misleading right before the user
+    approves running it.
+    """
+
+    def test_confirm_command_prompt_preserves_brackets(self, agent: CodingAgent, monkeypatch, capsys):
+        monkeypatch.setattr("rich.prompt.Confirm.ask", lambda *a, **k: True)
+        agent._default_confirm_command('python -c "print([1, 2, 3])"')
+        out = capsys.readouterr().out
+        assert "[1, 2, 3]" in out
+
+    def test_confirm_write_prompt_preserves_brackets_in_path(self, agent: CodingAgent, monkeypatch, capsys):
+        monkeypatch.setattr("rich.prompt.Confirm.ask", lambda *a, **k: True)
+        agent._default_confirm_write("src/list[experimental].py", "some diff text")
+        out = capsys.readouterr().out
+        assert "list[experimental].py" in out
+
+
 class TestExecuteSearchFiles:
     def test_finds_matches_across_workspace(self, agent: CodingAgent, temp_dir: Path):
         (temp_dir / "main.py").write_text("def calculate_total(items):\n    return sum(items)\n")
