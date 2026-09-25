@@ -117,23 +117,23 @@ class Config:
         table.add_column("Setting", style="cyan")
         table.add_column("Value", style="yellow")
 
-        table.add_row("LLM Provider", self.llm_provider)
-        table.add_row("Ollama Host", self.ollama_host)
-        table.add_row("Ollama Model", self.ollama_model)
+        table.add_row("LLM Provider", escape(self.llm_provider))
+        table.add_row("Ollama Host", escape(self.ollama_host))
+        table.add_row("Ollama Model", escape(self.ollama_model))
         if self.llm_provider == "openai":
-            table.add_row("OpenAI Model", self.openai_model)
+            table.add_row("OpenAI Model", escape(self.openai_model))
             table.add_row("OpenAI API Key", "***set***" if self.openai_api_key else "(not set)")
         if self.llm_provider == "anthropic":
-            table.add_row("Anthropic Model", self.anthropic_model)
+            table.add_row("Anthropic Model", escape(self.anthropic_model))
             table.add_row(
                 "Anthropic API Key", "***set***" if self.anthropic_api_key else "(not set)"
             )
-        table.add_row("Workspace Path", str(self.workspace_path))
+        table.add_row("Workspace Path", escape(str(self.workspace_path)))
         table.add_row("Max History Length", str(self.max_history_length))
         table.add_row("History Enabled", str(self.history_enabled))
         table.add_row("Show Spinner", str(self.show_spinner))
-        table.add_row("Syntax Theme", self.syntax_theme)
-        table.add_row("User Data Directory", str(self.user_data_dir))
+        table.add_row("Syntax Theme", escape(self.syntax_theme))
+        table.add_row("User Data Directory", escape(str(self.user_data_dir)))
 
         console.print(table)
 

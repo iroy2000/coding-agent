@@ -5,6 +5,7 @@ import re
 from typing import Callable, Dict, List, Optional, Tuple
 
 from rich.console import Console
+from rich.markup import escape
 from rich.prompt import Confirm
 from rich.syntax import Syntax
 
@@ -113,7 +114,7 @@ class CodingAgent:
         Returns:
             True if the user approves running the command
         """
-        console.print(f"\n[bold yellow]Agent wants to run a shell command:[/bold yellow] [cyan]{command}[/cyan]")
+        console.print(f"\n[bold yellow]Agent wants to run a shell command:[/bold yellow] [cyan]{escape(command)}[/cyan]")
         return Confirm.ask("Allow this command to run?", default=False)
 
     def _build_diff(self, path: str, old_content: str, new_content: str) -> str:
@@ -153,7 +154,7 @@ class CodingAgent:
         Returns:
             True if the user approves applying the change
         """
-        console.print(f"\n[bold yellow]Agent wants to write changes to:[/bold yellow] [cyan]{path}[/cyan]")
+        console.print(f"\n[bold yellow]Agent wants to write changes to:[/bold yellow] [cyan]{escape(path)}[/cyan]")
         console.print(Syntax(diff_text, "diff", theme="monokai", line_numbers=False, word_wrap=True))
         return Confirm.ask(f"Apply these changes to {path}?", default=True)
 

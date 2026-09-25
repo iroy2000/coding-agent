@@ -322,6 +322,22 @@ class TestConfigDisplay:
         assert "Current Configuration" in captured.out
         assert "Ollama Model" in captured.out
 
+    def test_display_preserves_brackets_in_workspace_path(self, clean_env, tmp_path, monkeypatch, capsys):
+        """Regression: `display()` interpolated `workspace_path` (and other
+        dynamic fields) directly into a Rich `Table` cell without escaping.
+        Rich silently drops any `[...]` span it doesn't recognize as markup,
+        so a workspace directory containing brackets (e.g. `[archived]`) was
+        shown with that segment missing.
+        """
+        monkeypatch.setenv("COLUMNS", "200")
+        bracketed_workspace = tmp_path / "[archived]" / "repo"
+        bracketed_workspace.mkdir(parents=True)
+        monkeypatch.setenv("WORKSPACE_PATH", str(bracketed_workspace))
+        cfg = Config()
+        cfg.display()
+        captured = capsys.readouterr()
+        assert "[archived]" in captured.out
+
 
 class TestConfigDotenvDiscovery:
     """Regression tests for issue #2: .env silently ignored on real installs."""
