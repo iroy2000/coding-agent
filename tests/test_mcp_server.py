@@ -148,7 +148,7 @@ class TestReadFileTool:
     async def test_read_file_full_content(self, mcp_server, temp_workspace):
         """Test reading full file content."""
         result = await mcp_server.call_tool("read_file", {
-            "path": "test.py"
+            "file_path": "test.py"
         })
         
         assert result["success"] is True
@@ -159,7 +159,7 @@ class TestReadFileTool:
     async def test_read_file_with_line_range(self, mcp_server, temp_workspace):
         """Test reading file with line range."""
         result = await mcp_server.call_tool("read_file", {
-            "path": "test.py",
+            "file_path": "test.py",
             "start_line": 1,
             "end_line": 1
         })
@@ -172,7 +172,7 @@ class TestReadFileTool:
     async def test_read_file_nonexistent(self, mcp_server):
         """Test reading nonexistent file returns error."""
         result = await mcp_server.call_tool("read_file", {
-            "path": "nonexistent.py"
+            "file_path": "nonexistent.py"
         })
         
         assert result["success"] is False
@@ -182,7 +182,7 @@ class TestReadFileTool:
     async def test_read_file_outside_workspace(self, mcp_server):
         """Test reading file outside workspace is blocked (security)."""
         result = await mcp_server.call_tool("read_file", {
-            "path": "../../etc/passwd"
+            "file_path": "../../etc/passwd"
         })
         
         assert result["success"] is False
@@ -197,7 +197,7 @@ class TestReadFileTool:
         silently returning line 1.
         """
         result = await mcp_server.call_tool("read_file", {
-            "path": "test.py",
+            "file_path": "test.py",
             "start_line": 0,
         })
 
@@ -210,7 +210,7 @@ class TestReadFileTool:
         so the tool would return the whole file rather than an error.
         """
         result = await mcp_server.call_tool("read_file", {
-            "path": "test.py",
+            "file_path": "test.py",
             "end_line": 0,
         })
 
@@ -222,7 +222,7 @@ class TestReadFileTool:
         """start_line beyond the file's line count must error, not silently
         return an empty/truncated result."""
         result = await mcp_server.call_tool("read_file", {
-            "path": "test.py",
+            "file_path": "test.py",
             "start_line": 1000,
         })
 
@@ -232,7 +232,7 @@ class TestReadFileTool:
     @pytest.mark.asyncio
     async def test_read_file_end_line_out_of_range(self, mcp_server):
         result = await mcp_server.call_tool("read_file", {
-            "path": "test.py",
+            "file_path": "test.py",
             "end_line": 1000,
         })
 
@@ -316,6 +316,36 @@ class TestExplainCodeTool:
             
             assert result["success"] is True
             assert "explanation" in result
+
+
+class TestListFilesToolDirectoryParam:
+    """Regression: `directory` must be a documented schema property, not just
+    an accepted-but-undeclared handler argument, so MCP clients strictly
+    following the schema can actually specify a subdirectory."""
+
+    def test_list_files_schema_declares_directory(self, mcp_server):
+        tools = mcp_server.list_tools()
+        list_files_tool = next(t for t in tools if t["name"] == "list_files")
+        assert "directory" in list_files_tool["inputSchema"]["properties"]
+
+
+class TestExplainCodePromptFormatting:
+    """Regression: the explain_code prompt previously used a doubled
+    backslash (`\\\\n`), which sends the literal two-character text "\\n" to
+    the model instead of an actual newline."""
+
+    @pytest.mark.asyncio
+    async def test_explain_code_prompt_has_real_newlines(self, mcp_server):
+        code = "x = 1"
+
+        with patch("coding_agent.llm.ollama_client.OllamaClient.generate") as mock_generate:
+            mock_generate.return_value = "explanation"
+
+            await mcp_server.call_tool("explain_code", {"code": code, "language": "python"})
+
+            sent_prompt = mock_generate.call_args[0][0]
+            assert "\\n" not in sent_prompt
+            assert "\n" in sent_prompt
 
 
 class TestWriteFileToolDisabled:
@@ -421,8 +451,8 @@ class TestToolSchemas:
         
         if read_file_tool:
             schema = read_file_tool["inputSchema"]
-            assert "path" in schema["properties"]
-            assert "path" in schema["required"]
+            assert "file_path" in schema["properties"]
+            assert "file_path" in schema["required"]
             assert "start_line" in schema["properties"]
             assert "end_line" in schema["properties"]
     
@@ -465,7 +495,7 @@ class TestErrorHandling:
         large_file.write_text("x" * (10 * 1024 * 1024))  # 10MB
         
         result = await mcp_server.call_tool("read_file", {
-            "path": "large.txt"
+            "file_path": "large.txt"
         })
         
         # Should handle gracefully (either success or clear error)

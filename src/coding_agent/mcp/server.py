@@ -76,11 +76,11 @@ class MCPServer:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Relative path to file in workspace"},
+                    "file_path": {"type": "string", "description": "Relative path to file in workspace"},
                     "start_line": {"type": "integer", "description": "Optional start line (1-indexed)"},
                     "end_line": {"type": "integer", "description": "Optional end line (inclusive)"},
                 },
-                "required": ["path"],
+                "required": ["file_path"],
             },
         }
 
@@ -92,6 +92,7 @@ class MCPServer:
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "directory": {"type": "string", "description": "Directory to list, relative to workspace root", "default": "."},
                     "pattern": {"type": "string", "description": "Optional glob pattern (e.g., '*.py')"},
                     "include_hidden": {"type": "boolean", "description": "Include hidden files", "default": False},
                 },
@@ -156,9 +157,9 @@ class MCPServer:
     async def _handle_read_file(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Handle read_file tool call."""
         try:
-            path = args.get("path")
+            path = args.get("file_path")
             if not path:
-                return {"success": False, "error": "Missing required parameter: path"}
+                return {"success": False, "error": "Missing required parameter: file_path"}
             
             # Use FileManager which already has security checks
             success, content = self.file_manager.read_file(path)
@@ -237,7 +238,10 @@ class MCPServer:
                 return {"success": False, "error": "Missing required parameter: code"}
             
             language = args.get("language", "")
-            prompt = f"Please explain what this {language} code does:\\n\\n```{language}\\n{code}\\n```"
+            # NOTE: must be a single backslash (an actual newline escape); a
+            # doubled backslash here would send the literal two-character
+            # text "\n" to the model instead of a real line break.
+            prompt = f"Please explain what this {language} code does:\n\n```{language}\n{code}\n```"
             
             explanation = await asyncio.to_thread(self.ollama_client.generate, prompt)
             return {"success": True, "explanation": explanation}
