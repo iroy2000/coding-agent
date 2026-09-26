@@ -233,6 +233,14 @@ class FileManager:
         Returns:
             Tuple of (success, message)
         """
+        # An empty old_text would match "between every character" (Python's
+        # str.replace/count treat "" as present everywhere), so
+        # `content.replace("", new_text)` silently corrupts the file by
+        # inserting new_text at every character boundary instead of
+        # performing a meaningful replacement. Reject it explicitly.
+        if old_text == "":
+            return False, f"Error: old_text cannot be empty when editing '{file_path}'"
+
         # First, read the file
         success, content = self.read_file(file_path)
         if not success:

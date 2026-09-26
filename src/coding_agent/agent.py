@@ -373,7 +373,9 @@ class CodingAgent:
                 new_text = params["new_text"]
 
                 read_success, existing_content = self.file_manager.read_file(path)
-                if read_success and old_text in existing_content:
+                # old_text == "" would match "everywhere" via str.replace(), producing
+                # a nonsensical diff preview; file_manager.edit_file() rejects it below.
+                if old_text and read_success and old_text in existing_content:
                     new_content = existing_content.replace(old_text, new_text)
                     diff_text = self._build_diff(path, existing_content, new_content)
 
