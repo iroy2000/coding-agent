@@ -1,5 +1,6 @@
 """File manager for workspace file operations."""
 
+import json
 import os
 import re
 import shutil
@@ -396,9 +397,7 @@ class FileManager:
             result = subprocess.run(
                 [
                     "rg",
-                    "--line-number",
-                    "--no-heading",
-                    "--color=never",
+                    "--json",
                     "--no-ignore",
                     "--max-count",
                     str(max_results),
@@ -421,16 +420,28 @@ class FileManager:
             return False, f"Error searching for pattern: {result.stderr.strip()}"
 
         matches = []
-        for line in result.stdout.splitlines():
+        # `--json` gives unambiguous structured fields (path/line_number/lines)
+        # instead of colon-delimited text, so paths or match content containing
+        # a literal ":" can't be mis-split (unlike naively splitting the plain
+        # "path:line:content" text output on the first colon).
+        for json_line in result.stdout.splitlines():
             try:
-                abs_part, rest = line.split(":", 1)
-                abs_path = Path(abs_part).resolve()
+                event = json.loads(json_line)
+            except ValueError:
+                continue
+            if event.get("type") != "match":
+                continue
+            data = event.get("data", {})
+            try:
+                abs_path = Path(data["path"]["text"]).resolve()
                 rel_path = abs_path.relative_to(self.workspace)
-            except (ValueError, OSError):
+                line_number = data["line_number"]
+                content = data["lines"]["text"].rstrip("\n")
+            except (KeyError, TypeError, ValueError, OSError):
                 continue
             if self._is_ignored(abs_path):
                 continue
-            matches.append(f"{rel_path}:{rest}")
+            matches.append(f"{rel_path}:{line_number}:{content}")
             if len(matches) >= max_results:
                 break
 

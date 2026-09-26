@@ -248,6 +248,28 @@ class TestFileManager:
         assert success is False
         assert "outside workspace" in message
 
+    def test_search_files_workspace_path_containing_colon(self, tmp_path):
+        """A workspace path containing ':' must not break rg output parsing.
+
+        Ripgrep's plain-text output is "path:line:content"; naively splitting
+        on the first ':' assumes the path itself has no colon, which silently
+        drops matches when the workspace (or a subdirectory) path does.
+        """
+        import shutil
+
+        if shutil.which("rg") is None:
+            pytest.skip("ripgrep not installed")
+
+        workspace = tmp_path / "proj:test"
+        workspace.mkdir()
+        (workspace / "notes.txt").write_text("TODO fix this\n")
+
+        fm = FileManager(workspace_path=str(workspace))
+        success, matches = fm.search_files("TODO")
+
+        assert success is True
+        assert matches == ["notes.txt:1:TODO fix this"]
+
     def test_file_exists(self, sample_workspace):
         """Test checking if file exists."""
         fm = FileManager(workspace_path=str(sample_workspace))
