@@ -41,7 +41,39 @@ class TestSplitSystemAndMessages:
         system, messages = _split_system_and_messages(context, "Continue")
 
         assert system is None
-        assert len(messages) == 2
+        # `context` already ends on a "user" message with no assistant
+        # reply in between, so appending another "user" message for `prompt`
+        # would violate Anthropic's strict role-alternation requirement.
+        # They're merged into a single "user" turn instead of dropping
+        # either one - see `test_merges_consecutive_same_role_messages`.
+        assert messages == [{"role": "user", "content": "Hi\n\nContinue"}]
+
+    def test_merges_consecutive_same_role_messages(self):
+        """Regression: a system-role message (e.g. a READ_FILE result)
+        sitting between two assistant turns - exactly what agent.py's
+        follow-up-explanation flow produces - used to be dropped from
+        `messages` entirely, leaving two consecutive "assistant" entries.
+        Anthropic's API rejects non-alternating roles outright, so any
+        multi-turn conversation involving a file operation would break on
+        the very next call. They must be merged into one turn instead.
+        """
+        context = [
+            {"role": "user", "content": "read main.py"},
+            {"role": "assistant", "content": "READ_FILE: main.py"},
+            {"role": "system", "content": "File: main.py\nContent:\nprint(1)"},
+            {"role": "assistant", "content": "This file prints 1."},
+        ]
+        system, messages = _split_system_and_messages(context, "now what does it do exactly?")
+
+        assert messages == [
+            {"role": "user", "content": "read main.py"},
+            {"role": "assistant", "content": "READ_FILE: main.py\n\nThis file prints 1."},
+            {"role": "user", "content": "now what does it do exactly?"},
+        ]
+        # Roles must strictly alternate, or Anthropic's API rejects the call.
+        roles = [m["role"] for m in messages]
+        assert all(roles[i] != roles[i + 1] for i in range(len(roles) - 1))
+        assert system == "File: main.py\nContent:\nprint(1)"
 
 
 class TestAnthropicProvider:
@@ -192,6 +224,31 @@ class TestAnthropicProvider:
 
         assert result.text == ""
         assert result.tool_calls == []
+
+    @patch("anthropic.Anthropic")
+    def test_generate_with_tools_sends_alternating_roles(self, mock_anthropic_class):
+        """Regression: a mid-conversation system message (a file-read
+        result, exactly as produced by agent.py's follow-up-explanation
+        flow) used to make the messages sent to Anthropic's API contain two
+        consecutive "assistant" entries, which the real API rejects.
+        """
+        mock_client = Mock()
+        text_block = Mock(type="text", text="It prints 1.")
+        mock_client.messages.create.return_value = Mock(content=[text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        client = AnthropicProvider(api_key="test-key")
+        context = [
+            {"role": "user", "content": "read main.py"},
+            {"role": "assistant", "content": "READ_FILE: main.py"},
+            {"role": "system", "content": "File: main.py\nContent:\nprint(1)"},
+            {"role": "assistant", "content": "This file prints 1."},
+        ]
+        client.generate_with_tools("now what does it do exactly?", context=context)
+
+        sent_messages = mock_client.messages.create.call_args.kwargs["messages"]
+        roles = [m["role"] for m in sent_messages]
+        assert all(roles[i] != roles[i + 1] for i in range(len(roles) - 1))
 
     def test_supports_tools_is_true(self):
         """AnthropicProvider must declare tool-calling support for the

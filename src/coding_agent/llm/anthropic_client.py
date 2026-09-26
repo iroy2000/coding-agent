@@ -42,7 +42,8 @@ def _split_system_and_messages(
 
     Returns:
         Tuple of (system_prompt or None, messages list with only
-        user/assistant roles)
+        user/assistant roles, guaranteed to strictly alternate as Anthropic
+        requires)
     """
     system_parts = []
     messages = []
@@ -51,9 +52,24 @@ def _split_system_and_messages(
         if msg.get("role") == "system":
             system_parts.append(msg.get("content", ""))
         else:
-            messages.append({"role": msg["role"], "content": msg["content"]})
+            role, content = msg["role"], msg["content"]
+            # Anthropic requires messages to strictly alternate between
+            # "user" and "assistant". Dropping system-role entries out of
+            # the middle of the conversation (e.g. a file-read result
+            # sitting between two assistant turns - see agent.py's
+            # follow-up-explanation flow) can otherwise leave two
+            # consecutive same-role messages, which the API rejects
+            # outright. Merge same-role messages together instead of
+            # dropping either one, so no content is lost.
+            if messages and messages[-1]["role"] == role:
+                messages[-1]["content"] = f"{messages[-1]['content']}\n\n{content}"
+            else:
+                messages.append({"role": role, "content": content})
 
-    messages.append({"role": "user", "content": prompt})
+    if messages and messages[-1]["role"] == "user":
+        messages[-1]["content"] = f"{messages[-1]['content']}\n\n{prompt}"
+    else:
+        messages.append({"role": "user", "content": prompt})
 
     system_prompt = "\n\n".join(p for p in system_parts if p) or None
     return system_prompt, messages
