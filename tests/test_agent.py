@@ -338,6 +338,26 @@ class TestEditFileDiffPreview:
         assert success is False
         assert "not found" in message.lower()
 
+    def test_edit_with_empty_old_text_rejected_and_file_untouched(
+        self, agent: CodingAgent, temp_dir: Path
+    ):
+        """Empty old_text must be rejected end-to-end, not silently corrupt the file.
+
+        str.replace("", x) would otherwise insert new_text at every character
+        boundary in the file.
+        """
+        original = "value = 1\n"
+        (temp_dir / "target.py").write_text(original)
+        agent.confirm_write = lambda path, diff: pytest.fail("should not be called")
+
+        success, message = agent._execute_file_operation(
+            "EDIT_FILE", {"path": "target.py", "old_text": "", "new_text": "INJECTED"}
+        )
+
+        assert success is False
+        assert "empty" in message.lower()
+        assert (temp_dir / "target.py").read_text() == original
+
 
 def _init_git_repo(path: Path) -> None:
     """Initialize a real git repo with an initial commit at the given path."""

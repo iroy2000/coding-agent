@@ -115,6 +115,22 @@ class TestFileManager:
         assert success is False
         assert "not found" in message
 
+    def test_edit_file_rejects_empty_old_text(self, sample_workspace):
+        """Empty old_text must be rejected, not silently insert new_text everywhere.
+
+        str.replace("", x) matches "between every character", so allowing an
+        empty old_text would corrupt the file (e.g. "abc" -> "XaXbXcX").
+        """
+        fm = FileManager(workspace_path=str(sample_workspace))
+        original_content = (sample_workspace / "src" / "main.py").read_text()
+
+        success, message = fm.edit_file("src/main.py", "", "INJECTED")
+
+        assert success is False
+        assert "empty" in message.lower()
+        # File must be left completely untouched.
+        assert (sample_workspace / "src" / "main.py").read_text() == original_content
+
     def test_list_files_all(self, sample_workspace):
         """Test listing all files in workspace."""
         fm = FileManager(workspace_path=str(sample_workspace))
