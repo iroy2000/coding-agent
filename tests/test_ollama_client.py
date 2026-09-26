@@ -131,6 +131,34 @@ class TestOllamaClient:
         assert mock_client.chat.called or mock_client.generate.called
 
     @patch('coding_agent.llm.ollama_client.ollama.Client')
+    def test_generate_does_not_mutate_caller_context(self, mock_client_class):
+        """generate() must not append to the caller's own context list."""
+        mock_client = Mock()
+        mock_client.chat.return_value = {"message": {"content": "response"}}
+        mock_client_class.return_value = mock_client
+
+        client = OllamaClient(host="http://localhost:11434", model="codellama:latest")
+        context = [{"role": "system", "content": "sys"}]
+
+        client.generate("hello", context=context)
+
+        assert context == [{"role": "system", "content": "sys"}]
+
+    @patch('coding_agent.llm.ollama_client.ollama.Client')
+    def test_stream_generate_does_not_mutate_caller_context(self, mock_client_class):
+        """stream_generate() must not append to the caller's own context list."""
+        mock_client = Mock()
+        mock_client.chat.return_value = [{"message": {"content": "chunk"}}]
+        mock_client_class.return_value = mock_client
+
+        client = OllamaClient(host="http://localhost:11434", model="codellama:latest")
+        context = [{"role": "system", "content": "sys"}]
+
+        list(client.stream_generate("hello", context=context))
+
+        assert context == [{"role": "system", "content": "sys"}]
+
+    @patch('coding_agent.llm.ollama_client.ollama.Client')
     def test_stream_generate(self, mock_client_class):
         """Test streaming generation."""
         mock_client = Mock()
@@ -184,3 +212,31 @@ class TestOllamaClient:
         
         assert models == []
         assert client.check_model_exists() is False
+
+    @patch('coding_agent.llm.ollama_client.ollama.Client')
+    def test_pull_model_success_escapes_model_name(self, mock_client_class):
+        """pull_model() must escape the model name before printing (Rich markup)."""
+        mock_client = Mock()
+        mock_client.pull.return_value = [{"status": "success"}]
+        mock_client_class.return_value = mock_client
+
+        client = OllamaClient(host="http://localhost:11434", model="codellama:latest")
+
+        # A model name containing bracketed text must not be swallowed by Rich markup.
+        result = client.pull_model("weird[model]name")
+
+        assert result is True
+        mock_client.pull.assert_called_once_with("weird[model]name", stream=True)
+
+    @patch('coding_agent.llm.ollama_client.ollama.Client')
+    def test_pull_model_failure_escapes_error_message(self, mock_client_class):
+        """pull_model() must escape the exception text before printing (Rich markup)."""
+        mock_client = Mock()
+        mock_client.pull.side_effect = Exception("boom [error] happened")
+        mock_client_class.return_value = mock_client
+
+        client = OllamaClient(host="http://localhost:11434", model="codellama:latest")
+
+        result = client.pull_model()
+
+        assert result is False

@@ -109,10 +109,10 @@ class OllamaClient(LLMProvider):
                 if status:
                     console.print(f"[dim]{escape(status)}[/dim]", end="\r")
 
-            console.print(f"\n[green]Successfully pulled model: {pull_model}[/green]")
+            console.print(f"\n[green]Successfully pulled model: {escape(pull_model)}[/green]")
             return True
         except Exception as e:
-            console.print(f"\n[red]Failed to pull model: {str(e)}[/red]")
+            console.print(f"\n[red]Failed to pull model: {escape(str(e))}[/red]")
             return False
 
     def generate(self, prompt: str, context: Optional[list] = None) -> str:
@@ -127,7 +127,7 @@ class OllamaClient(LLMProvider):
             Generated response text
         """
         try:
-            messages = context or []
+            messages = list(context or [])
             messages.append({"role": "user", "content": prompt})
 
             response = self.client.chat(model=self.model, messages=messages)
@@ -150,7 +150,7 @@ class OllamaClient(LLMProvider):
             Response chunks
         """
         try:
-            messages = context or []
+            messages = list(context or [])
             messages.append({"role": "user", "content": prompt})
 
             stream = self.client.chat(model=self.model, messages=messages, stream=True)
