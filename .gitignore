@@ -65,6 +65,7 @@ dmypy.json
 !CONTRIBUTING.md
 !EXAMPLES.md
 !USAGE_GUIDE.md
+!HANDOVER.md
 
 # Internal architecture and roadmap notes - kept local/private, not published.
 architecture/

@@ -1,6 +1,6 @@
 # Coding Agent CLI
 
-An interactive coding assistant that runs entirely on local LLMs via [Ollama](https://ollama.com). Ask it to write code, refactor, debug, or explain something, and it works in your terminal against the files in your workspace — nothing gets sent to a third-party API.
+An interactive coding assistant that runs by default entirely on local LLMs via [Ollama](https://ollama.com) — nothing leaves your machine. Ask it to write code, refactor, debug, or explain something, and it works in your terminal against the files in your workspace. Hosted OpenAI/Anthropic models are also supported if you opt in (see [Configuration](#configuration)).
 
 ## What it does
 
@@ -9,7 +9,8 @@ An interactive coding assistant that runs entirely on local LLMs via [Ollama](ht
 - **Runs shell commands** (tests, linters, builds) to check its own work — also with confirmation first, and a denylist for obviously destructive commands.
 - **Keeps conversation history** per session, with list/view/delete/export.
 - **Optional git integration** — auto-commit each change it makes, with a safe `undo` that will only revert commits it made itself.
-- Works with any Ollama model and any programming language.
+- **Optional MCP server** (`coding-agent serve`) so tools like Claude Desktop can call into your workspace — see [MCP server](#mcp-server-early--beta).
+- Works with any Ollama model and any programming language; OpenAI and Anthropic are also supported as alternative providers.
 
 ## Prerequisites
 
@@ -174,14 +175,18 @@ coding-agent-cli/
 ├── src/coding_agent/
 │   ├── cli.py           # CLI entry point (Typer)
 │   ├── agent.py         # Core agent loop
-│   ├── llm/             # Ollama client + prompts
-│   ├── tools/           # File operations, shell execution
+│   ├── llm/             # Ollama/OpenAI/Anthropic clients, prompts, tool schemas
+│   ├── tools/           # File operations, shell execution, git integration
+│   ├── mcp/             # MCP server (serve command) + client
 │   ├── storage/         # Conversation history
 │   └── utils/           # Config, display
 ├── tests/
 ├── scripts/             # dev-only helper scripts, see scripts/README.md
 └── pyproject.toml
 ```
+
+See [HANDOVER.md](HANDOVER.md) for a more detailed architecture breakdown,
+current project status, and known quirks worth knowing before changing code.
 
 ## Development
 
@@ -202,7 +207,7 @@ Active work is tracked in [GitHub Issues](https://github.com/iroy2000/coding-age
 - Ollama-native tool-calling support, extending the structured tool-calling added for OpenAI/Anthropic ([#8](https://github.com/iroy2000/coding-agent/issues/8))
 - First PyPI release ([#12](https://github.com/iroy2000/coding-agent/issues/12))
 
-What's already working: chat, file read/write/edit with diff confirmation, shell command execution with a safety denylist, git auto-commit/undo, history with export, and CI running the full test suite (200+ tests) on every push.
+What's already working: chat, file read/write/edit with diff confirmation, shell command execution with a safety denylist, git auto-commit/undo, history with export, structured tool-calling for OpenAI/Anthropic, an MCP server, and CI running the full test suite (400+ tests) on every push.
 
 ## MCP server (early / beta)
 
